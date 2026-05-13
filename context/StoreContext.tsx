@@ -239,7 +239,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const readIds = states.filter((s: any) => s.isRead).map((s: any) => s.notifId);
             const clearedIds = states.filter((s: any) => s.isCleared).map((s: any) => s.notifId);
             setClearedNotifications(clearedIds);
-            
+
             setNotifications(prev => {
                 // Filter out cleared ones and update isRead for others
                 return prev
@@ -259,7 +259,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const mangas = await api.getMangas();
             const bookmarkedMangas = mangas.filter(m => currentUser.bookmarks.includes(m.id));
-            
+
             const newChapterNotifications: Notification[] = bookmarkedMangas
                 .filter(m => {
                     // Check if manga was updated after it was bookmarked
@@ -268,7 +268,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                     const bookmarkDate = new Date(bookmarkInfo.createdAt).getTime();
                     const mangaUpdateDate = new Date(m.updatedAt).getTime();
-                    
+
                     return mangaUpdateDate > bookmarkDate;
                 })
                 .map(m => {

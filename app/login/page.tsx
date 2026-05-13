@@ -62,7 +62,7 @@ const Login: React.FC = () => {
             {isAdminPortal ? (isLogin ? 'Admin Portal' : 'Restricted') : (isLogin ? 'Welcome Back' : 'Create Account')}
           </h1>
           <p className="text-zinc-500 text-sm">
-            {isAdminPortal 
+            {isAdminPortal
               ? (isLogin ? 'Authorized personnel only' : 'Unauthorized Access')
               : (isLogin ? 'Enter your details to access your library' : 'Join Legion Scans today for free')}
           </p>
@@ -70,15 +70,15 @@ const Login: React.FC = () => {
         </div>
 
         {error && (
-            <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-                <p className="text-xs text-red-200 leading-relaxed font-bold">
-                    {error === 'CredentialsSignin' ? 'Invalid email or password. Please check your credentials.' : 
-                     error === 'OAuthAccountNotLinked' ? 'This email is already linked to another provider (Google or Discord).' :
-                     error === 'AdminAccessOnly' ? 'Access Denied: This area is restricted to administrators only.' :
-                     'An error occurred during sign in, please try again later.'}
-                </p>
-            </div>
+          <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className="text-xs text-red-200 leading-relaxed font-bold">
+              {error === 'CredentialsSignin' ? 'Invalid email or password. Please check your credentials.' :
+                error === 'OAuthAccountNotLinked' ? 'This email is already linked to another provider (Google or Discord).' :
+                  error === 'AdminAccessOnly' ? 'Access Denied: This area is restricted to administrators only.' :
+                    'An error occurred during sign in, please try again later.'}
+            </p>
+          </div>
         )}
 
 

@@ -1398,12 +1398,29 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                         {g}
                                                     </button>
                                                 ))}
+                                                {/* Render custom genres that are not in COMMON_GENRES */}
+                                                {mangaForm.genres.filter(g => !COMMON_GENRES.includes(g)).map(g => (
+                                                    <button
+                                                        key={g}
+                                                        type="button"
+                                                        onClick={() => handleGenreToggle(g)}
+                                                        className="px-2.5 py-1 rounded-lg text-[9px] font-black border transition-all duration-300 bg-primary text-white border-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]"
+                                                    >
+                                                        {g}
+                                                    </button>
+                                                ))}
                                             </div>
                                             <div className="flex gap-2 mt-3">
                                                 <input
                                                     placeholder="Custom genre..."
                                                     value={customGenre}
                                                     onChange={e => setCustomGenre(e.target.value)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            addCustomGenre();
+                                                        }
+                                                    }}
                                                     className="flex-1 px-4 py-2 rounded-lg bg-zinc-900/30 border border-zinc-800 text-xs focus:outline-none focus:border-primary/50 transition-all"
                                                 />
                                                 <button type="button" onClick={addCustomGenre} className="px-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all"><Plus className="w-4 h-4" /></button>

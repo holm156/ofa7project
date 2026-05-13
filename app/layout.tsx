@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     description: 'Read the latest manhwa and manga chapters online for free on Dusk Scans.',
     url: 'https://duskscans.com',
     siteName: 'Dusk Scans',
-    images: [{ url: '/logo.png', width: 800, height: 600 }],
+    images: [{ url: '/logo1.png', width: 800, height: 600 }],
     locale: 'en_US',
     type: 'website',
   },
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Dusk Scans - Read Manhwa Online',
     description: 'The best experience for reading manhwa and manga online.',
-    images: ['/logo.png'],
+    images: ['/logo1.png'],
   },
 };
 

@@ -410,23 +410,23 @@ const ProfileContent: React.FC<ProfileClientProps> = ({ initialMangas: mangas, i
 
                                         <div className="space-y-4">
                                             {[
-                                                { 
-                                                    id: 'chapter', 
-                                                    label: 'New Chapter Releases', 
+                                                {
+                                                    id: 'chapter',
+                                                    label: 'New Chapter Releases',
                                                     desc: 'Get notified when a bookmarked manga has a new chapter.',
                                                     value: notifChapter,
                                                     setter: setNotifChapter
                                                 },
-                                                { 
-                                                    id: 'reply', 
-                                                    label: 'Comment Replies', 
+                                                {
+                                                    id: 'reply',
+                                                    label: 'Comment Replies',
                                                     desc: 'Get notified when someone replies to your comment.',
                                                     value: notifReply,
                                                     setter: setNotifReply
                                                 },
-                                                { 
-                                                    id: 'like', 
-                                                    label: 'Comment Likes', 
+                                                {
+                                                    id: 'like',
+                                                    label: 'Comment Likes',
                                                     desc: 'Get notified when someone likes your comment.',
                                                     value: notifLike,
                                                     setter: setNotifLike
@@ -437,7 +437,7 @@ const ProfileContent: React.FC<ProfileClientProps> = ({ initialMangas: mangas, i
                                                         <h4 className="text-[15px] font-bold text-white">{item.label}</h4>
                                                         <p className="text-xs text-zinc-500 mt-0.5">{item.desc}</p>
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         type="button"
                                                         onClick={() => item.setter(!item.value)}
                                                         className={`w-12 h-6 rounded-full transition-all duration-300 relative ${item.value ? 'bg-primary shadow-[0_0_12px_rgba(217,70,239,0.3)]' : 'bg-zinc-800'}`}
@@ -457,7 +457,7 @@ const ProfileContent: React.FC<ProfileClientProps> = ({ initialMangas: mangas, i
                                     <Save className="w-4 h-4" />
                                     {isUpdating ? 'Saving...' : 'Save Changes'}
                                 </button>
-                                
+
                                 {settingsSubTab === 'profile' && (
                                     <div className="flex items-center gap-3 px-5 py-2.5 glass-panel rounded-2xl border-dashed border-primary/30">
                                         <div className="flex flex-col">
