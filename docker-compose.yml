@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8
+    container_name: duskscans_db
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-duskscans}"
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_PAYPAL_CLIENT_ID=${NEXT_PUBLIC_PAYPAL_CLIENT_ID}
+        - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+        - NEXT_PUBLIC_CDN_URL=${NEXT_PUBLIC_CDN_URL}
+    container_name: duskscans_app
+    # Removing direct port 80 access, Nginx will handle it now
+    expose:
+      - "3000"
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      # لاحظ استخدام (db) بدلاً من (127.0.0.1) واستخدام الباسورد الصحيح
+      - DB_URL=mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/${MYSQL_DATABASE:-duskscans}
+    volumes:
+      - ./public/avatars:/app/public/avatars
+      - ./public/covers:/app/public/covers
+      - ./public/backgrounds:/app/public/backgrounds
+      - ./public/uploads:/app/public/uploads
+      # Mapping for chapters if we want to be extra safe for legacy paths
+      - ./public/chapters:/app/public/chapters
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:latest
+    container_name: duskscans_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./public:/usr/share/nginx/html:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: duskscans_phpmyadmin
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  db_data:

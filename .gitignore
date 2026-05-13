@@ -1,0 +1,69 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+ssh-test.js
+.12env
+
+# Debug/test scripts (don't push to production)
+test-*.js
+check_user.js
+replace.js
+replace-bg.js
+replace-purple.js
+
+# Scratch & backup folders
+scratch/
+backups/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma
+/prisma/generated-client
+
+# project logs
+production.log
+startup_debug.log
+stderr.log
+
+# Uploaded content (VERY IMPORTANT: Keep these only on the server)
+public/covers/
+public/backgrounds/
+public/avatars/
+public/uploads/
+# If you have specific manga folder names, they should also be here
+# To ignore all dynamic folders in public except the logo:
+# public/*/
+# !public/logo.png

@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl", "linux-musl-openssl-3.0.x"]
+  engineType = "library"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DB_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Account_userId_fkey")
+
+  @@unique([provider, providerAccountId], map: "Account_provider_providerAccountId_key")
+  @@index([userId], map: "Account_userId_idx")
+  @@map("Account")
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  mangaId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Bookmark_userId_fkey")
+  manga     Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade, map: "Bookmark_mangaId_fkey")
+
+  @@unique([userId, mangaId], map: "Bookmark_userId_mangaId_key")
+  @@index([userId], map: "Bookmark_userId_idx")
+  @@map("Bookmark")
+}
+
+model Chapter {
+  id         String    @id @default(cuid())
+  title      String
+  number     Float
+  mangaId    String
+  pages      String?   @db.LongText
+  releaseDate DateTime @default(now()) @map("releasedAt")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime @updatedAt
+  freeDate   DateTime?
+  price      Int       @default(0)
+  sourceName String?
+  sourceColor String?
+  manga            Manga             @relation(fields: [mangaId], references: [id], onDelete: Cascade, map: "Chapter_mangaId_fkey")
+  unlockedChapters UnlockedChapter[]
+  histories        History[]
+  comments         Comment[]
+
+  @@unique([mangaId, number], map: "Chapter_mangaId_number_key")
+  @@index([mangaId], map: "Chapter_mangaId_idx")
+  @@map("Chapter")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String
+  mangaId   String
+  chapterId String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  
+  // Nesting
+  parentId  String?
+  parent    Comment?  @relation("CommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentToComment")
+
+  // Relations
+  manga     Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter   Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Votes
+  votes        CommentVote[]
+  likesCount   Int           @default(0)
+  dislikesCount Int          @default(0)
+
+  @@index([mangaId])
+  @@index([chapterId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("Comment")
+}
+
+model CommentVote {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  type      Int      // 1 for like, -1 for dislike
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+  @@map("CommentVote")
+}
+
+model Genre {
+  id     String  @id @default(cuid())
+  name   String  @unique(map: "Genre_name_key")
+  mangas Manga[] @relation("genretomanga")
+  @@map("Genre")
+}
+
+model History {
+  id        String   @id @default(cuid())
+  userId    String
+  mangaId   String
+  chapterId String
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "History_userId_fkey")
+  manga     Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade, map: "History_mangaId_fkey")
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade, map: "History_chapterId_fkey")
+
+  @@index([userId], map: "History_userId_idx")
+  @@map("History")
+}
+
+model Manga {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?       @db.Text
+  author          String?
+  artist          String?
+  status          String        @default("Ongoing")
+  views           Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  userId          String?
+  backgroundImage String?
+  cover           String?
+  slug            String        @unique @default(cuid())
+  isFeatured      Boolean       @default(false)
+  rating          Float         @default(0)
+  type            String        @default("Manhwa")
+  chapterCount    Int           @default(0)
+  discordRoleId   String?
+  releaseYear     String?       @default("2025")
+  chapters        Chapter[]
+  comments        Comment[]
+  user            User?         @relation(fields: [userId], references: [id], map: "Manga_userId_fkey")
+  ratings         Rating[]
+  viewHistory     ViewHistory[]
+  genres          Genre[]           @relation("genretomanga")
+  bookmarks       Bookmark[]
+  histories       History[]
+
+  @@index([userId], map: "Manga_userId_idx")
+  @@map("Manga")
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  userId    String
+  mangaId   String
+  rating    Int
+  updatedAt DateTime @updatedAt
+  manga     Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade, map: "Rating_mangaId_fkey")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Rating_userId_fkey")
+
+  @@unique([userId, mangaId], map: "Rating_userId_mangaId_key")
+  @@index([mangaId], map: "Rating_mangaId_idx")
+  @@index([userId], map: "Rating_userId_idx")
+  @@map("Rating")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique(map: "Session_sessionToken_key")
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Session_userId_fkey")
+
+  @@index([userId], map: "Session_userId_idx")
+  @@map("Session")
+}
+
+model UnlockedChapter {
+  id        String   @id @default(cuid())
+  userId    String
+  chapterId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UnlockedChapter_userId_fkey")
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade, map: "UnlockedChapter_chapterId_fkey")
+
+  @@unique([userId, chapterId], map: "UnlockedChapter_userId_chapterId_key")
+  @@index([userId], map: "UnlockedChapter_userId_idx")
+  @@map("UnlockedChapter")
+}
+
+model User {
+  id              String            @id @default(cuid())
+  name            String?
+  username        String?           @unique(map: "User_username_key")
+  email           String?           @unique(map: "User_email_key")
+  emailVerified   DateTime?
+  image           String?
+  role            String            @default("user")
+  coins           Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  password        String?
+  notificationsEnabled Boolean @default(true)
+  commentRepliesEnabled Boolean @default(true)
+  likeNotificationsEnabled Boolean @default(true)
+  accounts        Account[]
+  bookmarks       Bookmark[]
+  comments        Comment[]
+  history         History[]
+  mangas          Manga[]
+  ratings         Rating[]
+  sessions        Session[]
+  unlockedChapters UnlockedChapter[]
+  commentVotes     CommentVote[]
+  coinTransactions CoinTransaction[] @relation("UserTransactions")
+  adminActions     CoinTransaction[] @relation("AdminActions")
+  promoUsages      PromoUsage[]
+  notificationStates NotificationState[]
+  @@map("User")
+}
+
+model NotificationState {
+  id        String   @id @default(cuid())
+  userId    String
+  notifId   String   // The unique ID of the notification
+  isRead    Boolean  @default(false)
+  isCleared Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, notifId])
+  @@map("NotificationState")
+}
+
+model CoinTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  adminId     String?  // The admin who performed the action (if applicable)
+  amount      Int      // Positive for additions, negative for deductions
+  balanceAfter Int     @default(0) // The user's balance after this transaction
+  type        String   // e.g., "PURCHASE", "ADMIN_ADD", "ADMIN_DEDUCT", "ADMIN_SET"
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  user        User     @relation("UserTransactions", fields: [userId], references: [id], onDelete: Cascade)
+  admin       User?    @relation("AdminActions", fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([adminId])
+  @@map("CoinTransaction")
+}
+
+model PromoCode {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  coins      Int
+  maxUses    Int?         // null = unlimited
+  usedCount  Int          @default(0)
+  expiresAt  DateTime?
+  createdAt  DateTime     @default(now())
+  usages     PromoUsage[]
+  @@map("PromoCode")
+}
+
+model PromoUsage {
+  id          String    @id @default(cuid())
+  promoCodeId String
+  userId      String
+  discordId   String?   // Store Discord ID for anti-abuse
+  usedAt      DateTime  @default(now())
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, promoCodeId])
+  @@unique([discordId, promoCodeId]) // Prevent same Discord user from using same code twice
+  @@index([promoCodeId])
+  @@index([userId])
+  @@map("PromoUsage")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique(map: "VerificationToken_token_key")
+  expires    DateTime
+
+  @@unique([identifier, token], map: "VerificationToken_identifier_token_key")
+  @@map("VerificationToken")
+}
+
+model ViewHistory {
+  id        String   @id @default(cuid())
+  mangaId   String
+  timestamp DateTime @default(now())
+  manga     Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade, map: "ViewHistory_mangaId_fkey")
+
+  @@index([mangaId], map: "ViewHistory_mangaId_idx")
+  @@map("ViewHistory")
+}
