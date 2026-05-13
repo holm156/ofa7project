@@ -49,15 +49,7 @@ export const MangaCard = React.memo(({ manga, rank }: { manga: Manga; rank?: num
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
 
-                {/* Top Badges */}
-                <div className="absolute top-3 left-3">
-                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
-                        <div className={`w-2 h-2 rounded-full ${userHistory ? 'bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]' : 'bg-zinc-500'}`} />
-                        <span className="text-[10px] font-black text-white uppercase tracking-wider">
-                            {userHistory ? 'Reading' : 'Planned'}
-                        </span>
-                    </div>
-                </div>
+
 
                 {/* Remove Bookmark Button (Top Right) */}
                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -78,9 +70,7 @@ export const MangaCard = React.memo(({ manga, rank }: { manga: Manga; rank?: num
 
                 {/* Bottom Overlay Stats */}
                 <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-white/80 text-[10px] font-bold">
-                        <Eye className="w-3 h-3" /> {manga.views}
-                    </div>
+                    <div className="flex-1" />
                     <div className={`flex items-center gap-1 text-[10px] font-bold ${manga.status === 'Ongoing' ? 'text-green-400' : 'text-blue-400'}`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${manga.status === 'Ongoing' ? 'bg-green-400' : 'bg-blue-400'}`} />
                         {manga.status}
@@ -222,11 +212,11 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
     const manga = featured[selectedIndex] || featured[0];
 
     return (
-        <div 
-            className="vx-hero" 
-            style={{ 
-                position: 'relative', width: '100%', height: '460px', 
-                overflow: 'hidden', background: '#000000', cursor: 'grab' 
+        <div
+            className="vx-hero"
+            style={{
+                position: 'relative', width: '100%', height: '460px',
+                overflow: 'hidden', background: '#000000', cursor: 'grab'
             }}
             onMouseDown={onTouchStart}
             onMouseMove={(e) => touchStart && onTouchMove(e)}
@@ -244,34 +234,27 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
                     transition: 'opacity 0.8s ease-in-out',
                     zIndex: 0,
                 }}>
-                    <img
-                        src={getImageUrl(m.backgroundImage || m.cover)}
-                        alt=""
-                        draggable="false"
-                        style={{
-                            width: '100%', height: '100%',
-                            objectFit: 'cover',
-                            objectPosition: 'center 20%', // Prioritize the top/center of the image
-                            userSelect: 'none',
-                        }}
-                    />
-                    {/* Gradient Overlay: Dark on left, transparent on right */}
-                    <div style={{
-                        position: 'absolute', inset: 0,
-                        background: 'linear-gradient(to right, #000000 15%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.4) 60%, transparent 100%)',
-                    }} />
-                    {/* Bottom fade to blend with content below */}
-                    <div style={{
-                        position: 'absolute', left: 0, right: 0, bottom: 0, height: '100px',
-                        background: 'linear-gradient(to top, #000000, transparent)',
-                    }} />
+                    <picture>
+                        <source media="(min-width: 768px)" srcSet={getImageUrl(m.backgroundImage || m.cover)} />
+                        <img
+                            src={getImageUrl(m.cover)}
+                            alt=""
+                            draggable="false"
+                            className="w-full h-full object-cover object-top md:object-[right_20%]"
+                            style={{ userSelect: 'none' }}
+                        />
+                    </picture>
+                    {/* Gradient Overlay: Bottom-up on mobile, Left-Right on desktop */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-[#000000]/80 to-transparent md:bg-gradient-to-r md:from-[#000000] md:via-[#000000]/80 md:to-transparent" />
+                    {/* Extra bottom fade for seamless transition */}
+                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#000000] to-transparent" />
                 </div>
             ))}
 
             {/* Content Container */}
             <div style={{
                 position: 'relative', zIndex: 10,
-                height: '100%', maxWidth: '1280px', margin: '0 auto',
+                height: '100%', maxWidth: '1800px', margin: '0 auto',
                 padding: '0 40px', display: 'flex', alignItems: 'center',
             }}>
                 {/* ── Left Info Area ── */}
@@ -284,16 +267,26 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
                     }}>HOT PICK</span>
 
                     <h1 style={{
-                        fontSize: 'clamp(32px, 5vw, 64px)', fontWeight: 900, color: '#fff',
-                        lineHeight: 0.9, textTransform: 'uppercase', fontStyle: 'italic',
-                        letterSpacing: '-0.04em', textShadow: '0 4px 20px rgba(0,0,0,0.8)',
+                        fontSize: 'clamp(28px, 4.5vw, 54px)', // Slightly smaller to fit more text
+                        fontWeight: 900, 
+                        color: '#fff',
+                        lineHeight: 1.1, 
+                        textTransform: 'uppercase', 
+                        fontStyle: 'italic',
+                        letterSpacing: '-0.05em', // Tighter letters
+                        textShadow: '0 4px 20px rgba(0,0,0,0.8)',
                         margin: '4px 0',
+                        height: '3.3em', // Adjusted for 1.1 line-height
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
                     }}>{manga.title}</h1>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#facc15', fontWeight: 900, fontSize: '16px' }}>
                             <Star className="w-5 h-5" style={{ fill: '#facc15' }} />
-                            {manga.rating || '9.6'}
+                            {manga.rating || '0'}
                         </span>
                         {manga.genres?.slice(0, 2).map(g => (
                             <span key={g} style={{
@@ -307,19 +300,20 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
                     <p style={{
                         fontSize: '14px', color: '#d4d4d8', lineHeight: 1.6,
                         maxWidth: '420px', margin: '4px 0',
+                        height: '4.8em', // Exactly 3 lines (1.6 line-height * 3)
                         display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
                         overflow: 'hidden', textShadow: '0 2px 4px rgba(0,0,0,0.5)',
                     }}>
                         {manga.description || 'Dive into an epic journey where fate and power collide. Experience the story that everyone is talking about.'}
                     </p>
 
-                    <div className="flex items-center gap-4 mt-6">
-                        <Link href={`/series/${manga.slug}`} className="dusk-btn-primary">
-                            <BookOpen className="w-5 h-5" /> Read Now
+                    <div className="flex flex-row items-center gap-3 mt-6 w-full max-w-[400px]">
+                        <Link href={`/series/${manga.slug}`} className="dusk-btn-primary flex-1">
+                            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" /> Read Now
                         </Link>
                         <button
                             onClick={() => toggleBookmark(manga.id)}
-                            className="dusk-btn-secondary"
+                            className="dusk-btn-secondary flex-1"
                         >
                             {currentUser?.bookmarks?.includes(manga.id)
                                 ? <><Bookmark className="w-5 h-5 fill-current" /> In Library</>
@@ -329,9 +323,9 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
                 </div>
 
                 {/* ── Middle Right Arrows ── */}
-                <div style={{
+                <div className="hidden md:flex" style={{
                     position: 'absolute', top: '50%', right: '40px', transform: 'translateY(-50%)',
-                    display: 'flex', flexDirection: 'row', gap: '10px', zIndex: 100
+                    flexDirection: 'row', gap: '10px', zIndex: 100
                 }}>
                     <button onClick={prev} style={{
                         width: '46px', height: '46px', borderRadius: '50%',
@@ -339,7 +333,7 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
                         color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', transition: 'all 0.3s', backdropFilter: 'blur(8px)',
                     }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(159,18,57,0.8)'}
-                       onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.5)'}>
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.5)'}>
                         <ChevronLeft className="w-5 h-5" />
                     </button>
                     <button onClick={next} style={{
@@ -348,7 +342,7 @@ export const DuskHeroSlider: React.FC<{ featured: Manga[] }> = ({ featured }) =>
                         color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', transition: 'all 0.3s', backdropFilter: 'blur(8px)',
                     }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(159,18,57,0.8)'}
-                       onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.5)'}>
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.5)'}>
                         <ChevronRight className="w-5 h-5" />
                     </button>
                 </div>
@@ -420,9 +414,9 @@ export const ChapterListItem = React.memo(({
                         <span className="truncate">{isHistory ? mangaTitle : `Chapter ${chapter.number}`}</span>
 
                         {chapter.sourceName && (
-                            <div 
+                            <div
                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-tight"
-                                style={{ 
+                                style={{
                                     backgroundColor: `${chapter.sourceColor || '#e11d48'}15`,
                                     borderColor: `${chapter.sourceColor || '#e11d48'}30`,
                                     color: chapter.sourceColor || '#e11d48'

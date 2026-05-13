@@ -148,6 +148,15 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
     const [activeTab, setActiveTab] = useState<'chapters' | 'reviews'>('chapters');
     const [showUnlockModal, setShowUnlockModal] = useState<Chapter | null>(null);
     const [showBulkModal, setShowBulkModal] = useState<{ count: number, totalCost: number, chapters: Chapter[] } | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const chaptersPerPage = 20;
+    const totalPages = Math.ceil(initialChapters.length / chaptersPerPage);
+
+    const paginatedChapters = useMemo(() => {
+        const start = (currentPage - 1) * chaptersPerPage;
+        return initialChapters.slice(start, start + chaptersPerPage);
+    }, [initialChapters, currentPage]);
+
     const [commentCount, setCommentCount] = useState(initialComments.length);
     const [locallyUnlockedIds, setLocallyUnlockedIds] = useState<string[]>([]);
     const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false);
@@ -239,7 +248,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-black/10 opacity-90" />
 
                                         <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md border border-white/10 text-white text-[13px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-black/50">
-                                            {manga.rating || '9.6'} <Star className="w-3 h-3 fill-white text-white" />
+                                            {manga.rating || '0'} <Star className="w-3 h-3 fill-white text-white" />
                                         </div>
                                         <button onClick={() => toggleBookmark(manga.id)} className="absolute top-4 right-4 w-9 h-9 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center text-white hover:bg-white/20 transition-colors shadow-lg shadow-black/50">
                                             <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
@@ -290,7 +299,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                 <div className="flex items-center gap-6 mb-6 pb-6 border-b border-white/5">
                                     <div className="flex items-center gap-2">
                                         <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                                        <span className="text-lg text-white font-bold">{manga.rating || '9.6'}</span>
+                                        <span className="text-lg text-white font-bold">{manga.rating || '0'}</span>
                                     </div>
                                     <button onClick={() => toggleBookmark(manga.id)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors font-medium">
                                         <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} /> Add to Bookmark
@@ -365,10 +374,6 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                     <span className="text-zinc-300">{initialChapters[0] ? new Date(initialChapters[0].releaseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</span>
                                 </div>
                                 <div className="grid grid-cols-[140px_1fr] gap-4 items-center">
-                                    <span className="text-zinc-500 font-medium">Serialization</span>
-                                    <span className="text-zinc-300">Naver Series</span>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr] gap-4 items-center">
                                     <span className="text-zinc-500 font-medium">Views</span>
                                     <span className="text-zinc-300">{manga.views.toLocaleString()}</span>
                                 </div>
@@ -427,7 +432,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col">
                             <div className="flex flex-col gap-2 flex-1">
-                                {initialChapters.map((chapter) => {
+                                {paginatedChapters.map((chapter) => {
                                     const isUnlocked = (currentUser?.unlockedChapters.includes(chapter.id) || false) || locallyUnlockedIds.includes(chapter.id);
 
                                     const now = new Date();
@@ -460,6 +465,75 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                     );
                                 })}
                             </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 py-4 border-t border-white/5">
+                                    <div className="flex items-center gap-1.5 order-2 sm:order-1">
+                                        <button
+                                            onClick={() => setCurrentPage(1)}
+                                            disabled={currentPage === 1}
+                                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                        >
+                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" /></svg>
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                        >
+                                            <ChevronDown className="w-5 h-5 rotate-90" />
+                                        </button>
+
+                                        <div className="flex items-center gap-1.5 px-1">
+                                            {[...Array(totalPages)].map((_, i) => {
+                                                const pageNum = i + 1;
+                                                if (
+                                                    pageNum === 1 || 
+                                                    pageNum === totalPages || 
+                                                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                                ) {
+                                                    return (
+                                                        <button
+                                                            key={pageNum}
+                                                            onClick={() => setCurrentPage(pageNum)}
+                                                            className={`w-9 h-9 rounded-lg font-bold text-xs transition-all border ${
+                                                                currentPage === pageNum
+                                                                    ? 'bg-[#e11d48] border-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]'
+                                                                    : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                                                            }`}
+                                                        >
+                                                            {pageNum}
+                                                        </button>
+                                                    );
+                                                }
+                                                if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                                                    return <span key={pageNum} className="text-zinc-600 px-0.5">...</span>;
+                                                }
+                                                return null;
+                                            })}
+                                        </div>
+
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                        >
+                                            <ChevronDown className="w-5 h-5 -rotate-90" />
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentPage(totalPages)}
+                                            disabled={currentPage === totalPages}
+                                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                        >
+                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>
+                                        </button>
+                                    </div>
+                                    <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest order-1 sm:order-2">
+                                        Page <span className="text-white">{currentPage}</span> of <span className="text-white">{totalPages}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

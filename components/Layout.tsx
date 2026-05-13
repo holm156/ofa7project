@@ -398,7 +398,7 @@ export const Sidebar: React.FC = () => {
                         <div className="relative z-10">
                             <p className="text-sm font-black text-white mb-1">READ. DISCUSS.<br />REPEAT.</p>
                             <p className="text-xs text-zinc-400 mb-3">Join our community of readers!</p>
-                            <a href={process.env.NEXT_PUBLIC_DISCORD_URL} target="_blank" rel="noopener noreferrer"
+                            <a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer"
                                 className="flex items-center justify-center gap-2 bg-primary hover:opacity-90 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors w-full">
                                 <MessageSquare className="w-4 h-4" /> Join Discord
                             </a>
@@ -450,41 +450,60 @@ export const MobileBottomNav: React.FC = () => {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 export const Footer: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
-    <footer className={`dusk-footer ${collapsed ? 'is-collapsed' : ''}`}>
-        <div className="dusk-footer-inner">
-            {/* Brand */}
-            <div className="dusk-footer-brand">
-                <div className="flex items-center gap-3 mb-3">
-                    <img src="/logo1.png" alt="Logo" className="w-14 h-14 object-contain" />
+    <footer className={`dusk-footer ${collapsed ? 'is-collapsed' : ''} border-t border-white/5 bg-[#0a0506] relative overflow-hidden`}>
+        {/* Cinematic glow effects */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="dusk-footer-inner max-w-7xl mx-auto px-6 py-12 relative z-10">
+            {/* Brand Section */}
+            <div className="dusk-footer-brand space-y-6">
+                <div className="flex items-center gap-4">
+                    <div className="p-2 bg-zinc-900 rounded-2xl border border-white/5 shadow-2xl">
+                        <img src="/logo1.png" alt="Logo" className="w-12 h-12 object-contain" />
+                    </div>
                     <div>
-                        <p className="text-sm font-extrabold text-white tracking-tight leading-tight">DUSK SCANS</p>
+                        <p className="text-xl font-black text-white tracking-tighter leading-tight uppercase">Dusk Scans</p>
+                        <p className="text-[10px] font-bold text-primary tracking-[0.3em] uppercase">Premium Manhwa</p>
                     </div>
                 </div>
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                    Dive into manga, manhwa, and manhua with fast, smooth translations.<br />
-                    Your gateway to endless stories in the dark.
+                <p className="text-sm text-zinc-500 leading-relaxed max-w-sm font-medium">
+                    The ultimate destination for high-quality manhwa, manga, and manhua. 
+                    Experience lightning-fast updates and a cinematic reading interface 
+                    designed for true fans.
                 </p>
+                <div className="flex gap-4">
+                    <a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="p-3 bg-white/5 hover:bg-primary/10 hover:text-primary rounded-xl transition-all border border-white/5 group">
+                        <MessageSquare className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    </a>
+                </div>
             </div>
 
-
-
-            <div>
-                <h4 className="dusk-footer-heading">SUPPORT</h4>
-                <ul className="dusk-footer-links">
-                    <li><a href={process.env.NEXT_PUBLIC_DISCORD_URL} target="_blank" rel="noopener noreferrer">Help Center</a></li>
-                    <li><a href={process.env.NEXT_PUBLIC_DISCORD_URL} target="_blank" rel="noopener noreferrer">Report Issue</a></li>
-                    <li><Link href="/dmca">DMCA</Link></li>
-                    <li><a href={process.env.NEXT_PUBLIC_DISCORD_URL} target="_blank" rel="noopener noreferrer">Contact Us</a></li>
-                </ul>
+            {/* Navigation Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-8">
+                <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-6">Support</h4>
+                    <ul className="space-y-4">
+                        <li><a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Help Center</a></li>
+                        <li><a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Report Issue</a></li>
+                        <li><Link href="/dmca" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> DMCA</Link></li>
+                        <li><a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Contact Us</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-6">Legal</h4>
+                    <ul className="space-y-4">
+                        <li><Link href="/privacy" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Privacy Policy</Link></li>
+                        <li><Link href="/terms" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Terms of Service</Link></li>
+                    </ul>
+                </div>
             </div>
-
         </div>
 
-        <div className="dusk-footer-bottom">
-            <p className="text-xs text-zinc-600">© 2025 Dusk Scans. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-                <Link href="/privacy" className="text-xs text-zinc-600 hover:text-white transition-colors">Privacy Policy</Link>
-                <Link href="/terms" className="text-xs text-zinc-600 hover:text-white transition-colors">Terms of Service</Link>
+        <div className="max-w-7xl mx-auto px-6 py-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
+            <p className="text-[11px] font-bold text-zinc-600 uppercase tracking-widest">© 2025 Dusk Scans. Built for the community.</p>
+            <div className="flex items-center gap-6">
+                <span className="text-[10px] font-black text-primary uppercase tracking-[0.3em] animate-pulse">Stay Dark. Read Fast.</span>
             </div>
         </div>
     </footer>

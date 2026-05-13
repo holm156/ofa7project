@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search as SearchIcon, Frown, Plus, Bookmark, Star, ChevronDown, ArrowUpDown, Eye, EyeOff } from 'lucide-react';
+import { Search as SearchIcon, Frown, Plus, Star, ChevronDown, ArrowUpDown, Eye, EyeOff, Bookmark } from 'lucide-react';
 import { Manga } from '../types';
 import { getImageUrl } from '../lib/image';
 import { useStore } from '../context/StoreContext';
@@ -86,30 +86,43 @@ const PillButton = ({
 
 /* ─── Manga Browse Card ────────────────────────────────────────────── */
 const BrowseCard = React.memo(({ manga }: { manga: Manga & { chapters?: any[] } }) => {
-    const { currentUser, toggleBookmark } = useStore();
-    const isBookmarked = currentUser?.bookmarks?.includes(manga.id) ?? false;
     const chapterCount = manga.chapterCount ?? 0;
+    const { currentUser, toggleBookmark } = useStore();
+    const isBookmarked = currentUser?.bookmarks?.includes(manga.id);
 
     return (
         <div className="flex flex-col group h-full">
             {/* Cover */}
-            <Link href={`/series/${manga.slug}`} className="relative block aspect-[2/3] overflow-hidden rounded-2xl mb-4 shadow-lg">
-                <img
-                    src={getImageUrl(manga.cover)}
-                    alt={manga.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                />
-                
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 shadow-lg group">
+                <Link href={`/series/${manga.slug}`} className="absolute inset-0 z-0 block">
+                    <img
+                        src={getImageUrl(manga.cover)}
+                        alt={manga.title}
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    />
+                    {/* Overlay on hover */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </Link>
+
+                {/* Bookmark badge - Top Left */}
+                <button 
+                    onClick={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        toggleBookmark(manga.id); 
+                    }}
+                    className="absolute top-3 left-3 flex items-center justify-center w-8 h-8 bg-black/80 backdrop-blur-md rounded-lg border border-white/10 shadow-xl z-10 hover:bg-white/20 transition-colors"
+                >
+                    <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-white text-white' : 'text-white'}`} />
+                </button>
 
                 {/* Rating badge - Top Right */}
-                <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 shadow-xl z-10">
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 shadow-xl z-10 pointer-events-none">
                     <Star className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
                     <span className="text-xs font-black text-white">{manga.rating || '0'}</span>
                 </div>
-            </Link>
+            </div>
 
             {/* Info */}
             <div className="flex flex-col flex-1 gap-3 px-0.5">
@@ -119,11 +132,12 @@ const BrowseCard = React.memo(({ manga }: { manga: Manga & { chapters?: any[] } 
                     </h3>
                 </Link>
 
-                <div className="flex items-center gap-2">
-                    <div className="bg-zinc-800/80 border border-white/5 text-zinc-100 text-[11px] font-black px-3 py-1.5 rounded-lg">
-                        {chapterCount} Chapters
+                <div className="flex items-center gap-1.5 mt-auto">
+                    <div className="bg-zinc-800/80 border border-white/5 text-zinc-100 text-[10px] sm:text-[11px] font-black px-2 py-1.5 rounded-lg whitespace-nowrap">
+                        <span className="hidden sm:inline">{chapterCount} Chapters</span>
+                        <span className="sm:hidden">Ch. {chapterCount}</span>
                     </div>
-                    <div className={`text-[11px] font-black px-3 py-1.5 rounded-lg border
+                    <div className={`text-[10px] sm:text-[11px] font-black px-2 py-1.5 rounded-lg border whitespace-nowrap
                         ${manga.status === 'Ongoing'
                             ? 'bg-primary/20 text-primary border-primary/30'
                             : manga.status === 'Completed'
@@ -133,19 +147,6 @@ const BrowseCard = React.memo(({ manga }: { manga: Manga & { chapters?: any[] } 
                         {manga.status}
                     </div>
                 </div>
-
-                {/* Bookmark button */}
-                <button
-                    onClick={(e) => { e.preventDefault(); currentUser && toggleBookmark(manga.id); }}
-                    className={`mt-auto w-full flex items-center justify-center gap-2.5 py-3 rounded-2xl text-[13px] font-black transition-all duration-300 transform active:scale-95 shadow-xl
-                        ${isBookmarked
-                            ? 'bg-zinc-900 border border-primary/40 text-primary shadow-primary/10'
-                            : 'bg-primary text-white border border-primary/20 hover:brightness-110 shadow-primary/20'
-                        }`}
-                >
-                    <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-primary' : ''}`} />
-                    {isBookmarked ? 'Bookmarked' : 'Bookmark'}
-                </button>
             </div>
         </div>
     );

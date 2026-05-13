@@ -2,13 +2,13 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// إعدادات المسارات
+// Path settings
 const BACKUP_DIR = path.join(process.cwd(), 'backups');
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR);
 }
 
-// قراءة بيانات الاتصال من البيئة (أو ملف .env يدوياً لو مش موجودة)
+// Read connection info from environment (or manual .env file)
 let dbUrl = process.env.DB_URL;
 let webhookUrl = process.env.DISCORD_BACKUP_WEBHOOK_URL;
 
@@ -36,7 +36,7 @@ if (!dbUrl || !webhookUrl) {
   process.exit(1);
 }
 
-// تحليل الـ DB_URL (صيغة: mysql://user:pass@host:port/db)
+// Parse DB_URL (format: mysql://user:pass@host:port/db)
 const regex = /mysql:\/\/([^:]+)(?::([^@]+))?@([^:/]+)(?::(\d+))?\/([^?]+)/;
 const matches = dbUrl.match(regex);
 
@@ -53,7 +53,7 @@ const zipFile = `${backupFile}.gz`;
 console.log(`Starting backup for database: ${database}...`);
 
 try {
-  // 1. تنفيذ امر mysqldump
+  // 1. Execute mysqldump command
   const passArg = password ? `-p${password}` : '';
   const portArg = port ? `-P${port}` : '';
   const dumpCmd = `mysqldump -h ${host} ${portArg} -u ${user} ${passArg} ${database} > "${backupFile}"`;
@@ -61,17 +61,17 @@ try {
   execSync(dumpCmd);
   console.log("Dump created successfully.");
 
-  // 2. ضغط الملف بـ gzip
+  // 2. Compress file with gzip
   execSync(`gzip -f "${backupFile}"`);
   console.log("File zipped successfully.");
 
-  // 3. إرسال إلى ديسكورد باستخدام native fetch (Node 18+)
+  // 3. Send to Discord using native fetch (Node 18+)
   async function sendToDiscord() {
     const stats = fs.statSync(zipFile);
     const formData = new FormData();
     
-    // محتوى الرسالة
-    const content = `📦 **نسخة احتياطية جديدة لقاعدة البيانات**\n📅 التاريخ: ${new Date().toLocaleString()}\n🗂 الملف: \`${path.basename(zipFile)}\`\n⚖️ الحجم: ${(stats.size / 1024 / 1024).toFixed(2)} MB`;
+    // Message content
+    const content = `📦 **New Database Backup**\n📅 Date: ${new Date().toLocaleString()}\n🗂 File: \`${path.basename(zipFile)}\`\n⚖️ Size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`;
     
     formData.append('payload_json', JSON.stringify({ content }));
     const fileBuffer = fs.readFileSync(zipFile);
@@ -85,7 +85,7 @@ try {
 
     if (response.ok) {
       console.log("Backup sent to Discord successfully!");
-      // حذف الملف المؤقت بعد الإرسال للحفاظ على المساحة
+      // Delete temporary file after sending to save space
       fs.unlinkSync(zipFile);
     } else {
       const errText = await response.text();

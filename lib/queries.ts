@@ -30,7 +30,7 @@ export async function getMangas(): Promise<(Manga & { chapters: Chapter[] })[]> 
             genres: m.genres?.map((g: any) => g.name) || [],
             viewHistory: m.viewHistory?.map((vh: any) => vh.timestamp.getTime()) || [],
             userRatings: m.ratings || [],
-            uploaderName: m.user?.username || 'System'
+            uploaderName: m.user?.username || 'Dusk Scans'
         })) as unknown as (Manga & { chapters: Chapter[] })[];
     } catch (error) {
         console.error("Error fetching mangas in queries.ts:", error);
@@ -58,7 +58,7 @@ export async function getMangaById(id: string): Promise<Manga | null> {
             genres: manga.genres?.map((g: any) => g.name) || [],
             viewHistory: manga.viewHistory?.map((vh: any) => vh.timestamp.getTime()) || [],
             userRatings: manga.ratings || [],
-            uploaderName: manga.user?.username || 'System'
+            uploaderName: manga.user?.username || 'Dusk Scans'
         } as unknown as Manga;
     } catch (error) {
         console.error(`Error fetching manga ${id} in queries.ts:`, error);
@@ -86,7 +86,7 @@ export async function getMangaBySlug(slug: string): Promise<Manga | null> {
             genres: manga.genres?.map((g: any) => g.name) || [],
             viewHistory: manga.viewHistory?.map((vh: any) => vh.timestamp.getTime()) || [],
             userRatings: manga.ratings || [],
-            uploaderName: manga.user?.username || 'System'
+            uploaderName: manga.user?.username || 'Dusk Scans'
         } as unknown as Manga;
     } catch (error) {
         console.error(`Error fetching manga by slug ${slug} in queries.ts:`, error);

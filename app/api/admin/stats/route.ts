@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // مراجعة صلاحيات المدير
+  // Check admin permissions
   const user = await prisma.user.findUnique({
     where: { email: session.user.email! },
     select: { role: true }
@@ -24,13 +24,13 @@ export async function GET() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // 1. إحصائيات المستخدمين
+    // 1. User statistics
     const [totalUsers, newUsers30d] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } })
     ]);
 
-    // 2. إحصائيات الأرباح والمبيعات
+    // 2. Revenue and sales statistics
     const revenueStats = await prisma.coinTransaction.aggregate({
       where: { type: 'PURCHASE' },
       _sum: { amount: true }
@@ -41,7 +41,7 @@ export async function GET() {
       _sum: { amount: true }
     });
 
-    // 3. أكثر المانجات قراءة (Top 5)
+    // 3. Most read manga (Top 5)
     const topViews = await prisma.viewHistory.groupBy({
       by: ['mangaId'],
       _count: { id: true },
@@ -59,7 +59,7 @@ export async function GET() {
       })
     );
 
-    // 4. إحصائيات الفصول
+    // 4. Chapter statistics
     const totalChapters = await prisma.chapter.count();
     const unlockedChaptersCount = await prisma.unlockedChapter.count();
 

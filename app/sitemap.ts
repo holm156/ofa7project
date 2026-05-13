@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = process.env.NEXTAUTH_URL || 'https://duskscans.com';
 
-    // 1. القائمة الأساسية
+    // 1. Static pages
     const staticPages: MetadataRoute.Sitemap = [
         {
             url: baseUrl,
@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
 
     try {
-        // 2. سحب كل المانجا من الداتا بيز
+        // 2. Fetch all manga from database
         const mangas = await prisma.manga.findMany({
             select: { slug: true, updatedAt: true }
         });
@@ -30,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             priority: 1,
         }));
 
-        // 3. سحب كل الشباتر من الداتا بيز
+        // 3. Fetch all chapters from database
         const chapters = await prisma.chapter.findMany({
             select: {
                 number: true,

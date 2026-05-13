@@ -17,6 +17,12 @@ const WEBP_MAX_DIMENSION = 16383;
 async function convertImage(input: Buffer | Uint8Array, quality = 80): Promise<{ buffer: Buffer; ext: string }> {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
   const meta = await sharp(buf, { limitInputPixels: false }).metadata();
+  
+  // If it's a GIF, keep it as is to preserve animation
+  if (meta.format === 'gif') {
+    return { buffer: buf, ext: 'gif' };
+  }
+
   const w = meta.width ?? 0;
   const h = meta.height ?? 0;
 
@@ -128,7 +134,7 @@ export async function POST(req: Request) {
             const originalName = path.basename(zipEntry.entryName);
             const safeName = path.parse(originalName).name.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-            // تحويل الصورة — WebP إذا كانت الأبعاد في الحدود، PNG للصور الكبيرة جداً
+            // Convert image - WebP if dimensions are within limits, PNG for oversized images
             const { buffer: imgBuffer, ext } = await convertImage(zipEntry.getData());
             const filename = `${Date.now()}-${safeName}.${ext}`;
             if (useWasabi) {
@@ -181,7 +187,7 @@ export async function POST(req: Request) {
               const originalName = path.basename(fileHeader.name);
               const safeName = path.parse(originalName).name.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-              // تحويل الصورة — WebP إذا كانت الأبعاد في الحدود، PNG للصور الكبيرة جداً
+              // Convert image - WebP if dimensions are within limits, PNG for oversized images
               const { buffer: imgBuffer, ext } = await convertImage(Buffer.from(extraction));
               const filename = `${Date.now()}-${safeName}.${ext}`;
               if (useWasabi) {
@@ -211,7 +217,7 @@ export async function POST(req: Request) {
       // Single Image Upload
       const safeName = path.parse(file.name).name.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-      // تحويل الصورة — WebP إذا كانت الأبعاد في الحدود، PNG للصور الكبيرة جداً
+      // Convert image - WebP if dimensions are within limits, PNG for oversized images
       const { buffer: imgBuffer, ext } = await convertImage(buffer);
       const filename = `${Date.now()}-${safeName}.${ext}`;
       let publicUrl = `/api/${folder}/${filename}`;
@@ -229,9 +235,12 @@ export async function POST(req: Request) {
     }
 
   } catch (e: any) {
-
-    console.error("Upload Error:", e);
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    console.error("[UPLOAD_API_ERROR]", e);
+    return NextResponse.json({ 
+      success: false, 
+      error: e.message || "Internal Server Error",
+      code: (e as any).code || "UNKNOWN_ERROR"
+    }, { status: 500 });
   }
 }
 

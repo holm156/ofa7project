@@ -42,6 +42,16 @@ body {
   overflow-x: hidden;
 }
 
+/* ─── Autofill Override ─────────────────────────────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #050505 inset !important;
+  -webkit-text-fill-color: white !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* ─── Scrollbar ─────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
@@ -77,13 +87,24 @@ body {
   color: #fff;
   font-size: 16px;
   font-weight: 500;
-  padding: 14px 32px;
-  border-radius: 10px;
+  padding: 12px 24px;
+  border-radius: 12px;
   text-decoration: none;
   box-shadow: 0 8px 32px rgba(174, 6, 21, 0.4);
   transition: all 0.3s ease;
   border: none;
   cursor: pointer;
+  white-space: nowrap;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .dusk-btn-primary {
+    padding: 10px 16px;
+    font-size: 14px;
+    gap: 6px;
+    width: 100%;
+  }
 }
 
 .dusk-btn-primary:hover {
@@ -102,11 +123,22 @@ body {
   color: #fff;
   font-size: 16px;
   font-weight: 500;
-  padding: 14px 28px;
-  border-radius: 10px;
+  padding: 12px 20px;
+  border-radius: 12px;
   text-decoration: none;
   transition: all 0.3s ease;
   cursor: pointer;
+  white-space: nowrap;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .dusk-btn-secondary {
+    padding: 10px 14px;
+    font-size: 14px;
+    gap: 6px;
+    width: 100%;
+  }
 }
 
 .dusk-btn-secondary:hover {
@@ -368,7 +400,7 @@ body {
   display: flex;
   align-items: center;
   padding: 24px 20px;
-  max-width: 1300px;
+  max-width: 1800px;
   margin: 0 auto;
   gap: 32px;
 }
@@ -583,7 +615,7 @@ body {
 
 .dusk-main-content {
   padding: 24px 16px;
-  max-width: 1280px;
+  max-width: 1800px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;

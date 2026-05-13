@@ -1,24 +1,24 @@
 FROM node:22-alpine AS base
 
-# إضافة التبعيات اللازمة لـ Alpine
+# Add necessary dependencies for Alpine
 RUN apk add --no-cache libc6-compat openssl
 
-# الاعتماديات (Dependencies)
+# Dependencies
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+RUN npm ci
 
-# البناء (Build)
+# Build
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# تجهيز عميل Prisma
+# Prepare Prisma client
 RUN npx prisma@5.19.1 generate
 
-# إعداد البيئة للبناء
+# Set environment for build
 ARG NEXT_PUBLIC_PAYPAL_CLIENT_ID
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_WASABI_CDN
@@ -29,14 +29,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV DB_URL="mysql://root@localhost:3306/placeholder"
 
-# بناء تطبيق Next.js بالاعتماد على أمر next build مباشرة للابتعاد عن السكريبتات الجانبية
+# Build Next.js application using next build directly
 RUN npx next build
 
-# التشغيل (Runner)
+# Runner
 FROM base AS runner
 WORKDIR /app
 
-# إضافة أدوات قواعد البيانات والضغط للـ Backup
+# Add database tools and compression for Backup
 RUN apk add --no-cache mysql-client gzip
 
 ENV NODE_ENV=production
@@ -45,19 +45,19 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# نقل مجلدات Prisma والأمور الهامة
+# Copy Prisma and essential folders
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
 
-# نسخ ملفات النشر المصغّرة (Standalone)
+# Copy standalone build files
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# نسخ سكريبت التشغيل
+# Copy entrypoint script
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# إعطاء الصلاحيات لمنع أخطاء الـ permissions
+# Grant permissions to prevent permission errors
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs

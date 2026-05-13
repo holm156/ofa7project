@@ -28,7 +28,7 @@ services:
     env_file:
       - .env
     environment:
-      # لاحظ استخدام (db) بدلاً من (127.0.0.1) واستخدام الباسورد الصحيح
+      # Note: use 'db' instead of '127.0.0.1' and provide the correct password
       - DB_URL=mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/${MYSQL_DATABASE:-duskscans}
     volumes:
       - ./public/avatars:/app/public/avatars

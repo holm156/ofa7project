@@ -5,12 +5,12 @@ export const getImageUrl = (url: string | null | undefined, chapterId?: string):
     const wasabiCdnUrl = process.env.NEXT_PUBLIC_WASABI_CDN || ''; 
     const generalCdnUrl = process.env.NEXT_PUBLIC_CDN_URL || '';
 
-    // لو الصورة من Wasabi، حولها فوراً لرابط كلاود فلير ورجعها فوراً (عشان ما تروحش للـ Proxy)
+    // If the image is from Wasabi, convert it to Cloudflare CDN link immediately (to bypass proxy)
     if (url.startsWith(wasabiBase) && wasabiCdnUrl) {
         return url.replace(wasabiBase, wasabiCdnUrl);
     }
 
-    // لو الرابط أصلاً هو رابط الـ CDN بتاعك، رجعه زي ما هو فوراً
+    // If the URL is already your CDN link, return it as is immediately
     if (wasabiCdnUrl && url.startsWith(wasabiCdnUrl)) {
         return url;
     }

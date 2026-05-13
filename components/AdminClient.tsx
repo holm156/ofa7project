@@ -248,6 +248,26 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [expandedBulkIndices, setExpandedBulkIndices] = useState<number[]>([]);
     const [autoPublish, setAutoPublish] = useState(false);
     const [scraperProgress, setScraperProgress] = useState(0);
+    const [scraperJobs, setScraperJobs] = useState<any[]>([]);
+
+    // Fetch active jobs periodically
+    React.useEffect(() => {
+        const fetchJobs = async () => {
+            try {
+                const res = await fetch('/api/admin/scraper');
+                const data = await res.json();
+                if (Array.isArray(data)) setScraperJobs(data);
+            } catch (e) {
+                console.error("Failed to fetch jobs", e);
+            }
+        };
+
+        if (activeTab === 'scraper') {
+            fetchJobs();
+            const interval = setInterval(fetchJobs, 10000); // Update every 10s
+            return () => clearInterval(interval);
+        }
+    }, [activeTab]);
 
     // Auth Check
     React.useEffect(() => {
@@ -1169,7 +1189,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     };
 
     return (
-        <div className="max-w-6xl mx-auto pb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
             <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -1202,7 +1222,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                         {isLoadingStats ? (
                             <div className="py-24 text-center bg-surface/30 rounded-2xl border border-dashed border-white/5">
                                 <div className="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                <p className="text-zinc-500 italic">جاري تحميل الإحصائيات المتقدمة...</p>
+                                <p className="text-zinc-500 italic">Loading advanced statistics...</p>
                             </div>
                         ) : stats && (
                             <>
@@ -1572,25 +1592,25 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         : 'Enter a chapter URL from another site to automatically extract and download images.'}
                                 </p>
 
-                                <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 mb-6">
+                                <div className="flex bg-zinc-950 p-1 rounded-xl border border-white/5 mb-6 shadow-inner">
                                     <button
                                         type="button"
                                         onClick={() => setIsScraperBulkMode(false)}
-                                        className={`flex-1 px-4 py-1.5 rounded-md text-[11px] font-bold transition-all ${!isScraperBulkMode ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+                                        className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${!isScraperBulkMode ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-500 hover:text-zinc-300'}`}
                                     >
                                         Single URL
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => { setIsScraperBulkMode(true); setScraperRangeMode(true); }}
-                                        className={`flex-1 px-4 py-1.5 rounded-md text-[11px] font-bold transition-all ${isScraperBulkMode && scraperRangeMode ? 'bg-primary text-black shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+                                        className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${isScraperBulkMode && scraperRangeMode ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-500 hover:text-zinc-300'}`}
                                     >
                                         Range
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => { setIsScraperBulkMode(true); setScraperRangeMode(false); }}
-                                        className={`flex-1 px-4 py-1.5 rounded-md text-[11px] font-bold transition-all ${isScraperBulkMode && !scraperRangeMode ? 'bg-primary text-black shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+                                        className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${isScraperBulkMode && !scraperRangeMode ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-500 hover:text-zinc-300'}`}
                                     >
                                         List
                                     </button>
@@ -1756,9 +1776,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                 </form>
                             </Card>
 
-                            <div className="lg:col-span-2">
-                                {isScraping ? (
-                                    <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800 p-8">
+                            <div className="lg:col-span-2 space-y-6">
+                                {isScraping && (
+                                    <div className="flex flex-col items-center justify-center bg-zinc-900/40 rounded-2xl border border-primary/20 p-8 shadow-2xl shadow-primary/5 animate-in zoom-in-95 duration-300">
                                         <div className="relative mb-8">
                                             <div className="w-20 h-20 border-4 border-primary/10 border-t-primary rounded-full animate-spin" />
                                             <div className="absolute inset-0 flex items-center justify-center">
@@ -1774,19 +1794,89 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                 />
                                             </div>
                                             <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-black text-zinc-500">
-                                                <span>Progress</span>
+                                                <span>Session Progress</span>
                                                 <span className="text-primary">{scraperProgress}% Completed</span>
                                             </div>
                                         </div>
 
-                                        <p className="mt-10 text-zinc-300 font-bold text-center">
+                                        <p className="mt-8 text-zinc-300 font-bold text-center text-sm">
                                             {isScraperBulkMode
-                                                ? `Processing bulk chapters... (${Math.round((scraperProgress / 100) * (scraperRangeMode ? (Math.abs((parseInt(scraperRangeEnd) || 0) - (parseInt(scraperRangeStart) || 0)) + 1) : scraperBulkUrls.split('\n').filter(Boolean).length))} completed)`
+                                                ? `Processing bulk chapters...`
                                                 : 'Analyzing page content and extracting images...'}
                                         </p>
-                                        <p className="text-[10px] text-zinc-600 uppercase tracking-widest mt-2">Please wait, do not close this tab</p>
+                                        <p className="text-[10px] text-zinc-600 uppercase tracking-widest mt-2">Background process active - you can safely close this tab</p>
                                     </div>
-                                ) : scraperResult ? (
+                                )}
+
+                                {!scraperResult && (
+                                    <Card className="p-6 bg-zinc-950/20 border-white/5">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h3 className="text-lg font-bold flex items-center gap-2">
+                                                <Clock className="w-5 h-5 text-primary" />
+                                                Recent & Active Jobs
+                                            </h3>
+                                            <div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest bg-zinc-800 px-2 py-1 rounded">
+                                                Auto-refreshing
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {scraperJobs.length === 0 ? (
+                                                <div className="py-12 text-center border border-dashed border-white/5 rounded-xl">
+                                                    <p className="text-zinc-500 text-sm italic">No recent jobs found.</p>
+                                                </div>
+                                            ) : (
+                                                scraperJobs.map((job) => (
+                                                    <div key={job.id} className="p-4 bg-zinc-900/50 rounded-xl border border-white/5 hover:border-zinc-700 transition-all group">
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-2 h-2 rounded-full ${
+                                                                    job.status === 'processing' ? 'bg-blue-500 animate-pulse' : 
+                                                                    job.status === 'completed' ? 'bg-green-500' : 'bg-red-500'
+                                                                }`} />
+                                                                <span className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                                                                    {job.status}
+                                                                </span>
+                                                                <span className="text-[10px] text-zinc-600 font-bold">
+                                                                    {new Date(job.createdAt).toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-[10px] text-zinc-500 font-mono bg-black/40 px-2 py-1 rounded">
+                                                                ID: {job.id.slice(-8)}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full transition-all duration-1000 ${
+                                                                        job.status === 'completed' ? 'bg-green-500' : 
+                                                                        job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
+                                                                    }`}
+                                                                    style={{ width: `${job.progress}%` }}
+                                                                />
+                                                            </div>
+                                                            <div className="flex justify-between text-[9px] font-bold uppercase tracking-tighter">
+                                                                <span className="text-zinc-600">Progress: {job.progress}%</span>
+                                                                {job.error && <span className="text-red-500 line-clamp-1 max-w-[200px]">{job.error}</span>}
+                                                                {job.status === 'completed' && (
+                                                                    <button 
+                                                                        onClick={() => setScraperResult(job.results)}
+                                                                        className="text-primary hover:underline"
+                                                                    >
+                                                                        View Results
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </Card>
+                                )}
+
+                                {scraperResult ? (
                                     <div className="space-y-6">
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-xl font-bold flex items-center gap-2">
@@ -1903,11 +1993,12 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800 opacity-50">
-                                        <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-6">
-                                            <Search className="w-8 h-8 text-zinc-700" />
+                                    <div className="h-full min-h-[450px] flex flex-col items-center justify-center bg-white/[0.02] rounded-3xl border-2 border-dashed border-white/5 opacity-40 group hover:opacity-60 transition-opacity duration-500">
+                                        <div className="w-24 h-24 bg-zinc-900/50 rounded-full flex items-center justify-center mb-8 border border-white/5 shadow-2xl group-hover:scale-110 transition-transform duration-500">
+                                            <Search className="w-10 h-10 text-zinc-600 group-hover:text-primary transition-colors" />
                                         </div>
-                                        <p className="text-zinc-500 font-medium">Ready to scrape. Paste a link to start.</p>
+                                        <p className="text-zinc-400 font-black uppercase tracking-[0.2em] text-xs">Ready to Scrape</p>
+                                        <p className="text-zinc-600 text-[10px] mt-2 font-bold uppercase tracking-widest">Paste a link to start extraction</p>
                                     </div>
                                 )}
                             </div>

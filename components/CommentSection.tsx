@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Send, Zap, Clock, TrendingUp } from 'lucide-react';
+import { MessageSquare, Send, Zap, Clock, TrendingUp, Star } from 'lucide-react';
 import { Comment } from '../types';
 import { api } from '../services/api';
 import { useStore } from '../context/StoreContext';
@@ -23,6 +23,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ mangaId, chapterId, ini
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [userRating, setUserRating] = useState(0);
+    const [hoverRating, setHoverRating] = useState(0);
 
     useEffect(() => {
         if (onCountChange) onCountChange(comments.length);
@@ -82,26 +84,59 @@ const CommentSection: React.FC<CommentSectionProps> = ({ mangaId, chapterId, ini
                     </span>
                 </h3>
 
-                {/* Sort Tabs */}
-                <div className="flex bg-zinc-900/50 p-1 rounded-xl border border-white/5 shadow-inner">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto md:justify-end">
+                    {/* Rating UI (Only show if not in a specific chapter) */}
+                    {!chapterId && (
+                        <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1.5 rounded-xl border border-white/5 shadow-inner">
+                            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider mr-1">Rate:</span>
+                            <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                        key={star}
+                                        type="button"
+                                        className="transition-transform hover:scale-125 focus:outline-none"
+                                        onMouseEnter={() => setHoverRating(star)}
+                                        onMouseLeave={() => setHoverRating(0)}
+                                        onClick={() => {
+                                            setUserRating(star);
+                                            showToast(`Rated ${star} stars!`, 'success');
+                                            // TODO: Call API to save rating
+                                        }}
+                                    >
+                                        <Star 
+                                            className={`w-4 h-4 transition-colors duration-200 ${
+                                                star <= (hoverRating || userRating)
+                                                    ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]'
+                                                    : 'text-zinc-600 hover:text-yellow-400/50'
+                                            }`} 
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Sort Tabs */}
+                    <div className="flex bg-zinc-900/50 p-1 rounded-xl border border-white/5 shadow-inner">
                     <button
                         onClick={() => setSortBy('best')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === 'best' ? 'bg-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === 'best' ? 'bg-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                     >
                         <TrendingUp className="w-3.5 h-3.5" /> Best
                     </button>
                     <button
                         onClick={() => setSortBy('newest')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === 'newest' ? 'bg-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === 'newest' ? 'bg-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                     >
                         <Zap className="w-3.5 h-3.5" /> Newest
                     </button>
                     <button
                         onClick={() => setSortBy('oldest')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === 'oldest' ? 'bg-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === 'oldest' ? 'bg-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                     >
                         <Clock className="w-3.5 h-3.5" /> Oldest
                     </button>
+                </div>
                 </div>
             </div>
 

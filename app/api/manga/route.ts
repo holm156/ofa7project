@@ -19,10 +19,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   // Security Check
-  const session = await getServerSession(authOptions);
-  // Only admins can create manga
+  // Only admins and moderators can create manga
   // @ts-ignore
-  if (!session || session.user?.role !== 'admin') {
+  if (!session || (session.user?.role !== 'admin' && session.user?.role !== 'moderator')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -44,6 +43,8 @@ export async function POST(req: Request) {
         releaseYear: body.releaseYear || '2025',
         discordRoleId: body.discordRoleId || null,
         slug: generateSlug(body.title),
+        // @ts-ignore
+        userId: session.user.id,
         genres: {
           connectOrCreate: genres.map((g: string) => ({
             where: { name: g },

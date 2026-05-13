@@ -1,32 +1,32 @@
-# دليل الرفع على هوستنجر (Hostinger Deployment Guide) - التحديث النهائي الأسهل
+# Hostinger Deployment Guide - Easiest Final Update
 
-تم تطوير نظام رفع أوتوماتيكي بالكامل في هذا المشروع ليحل كل مشاكل السيرفر على هوستنجر بخطوتين فقط.
+A fully automated deployment system has been developed for this project to solve all Hostinger server issues in just two steps.
 
-## 1. التجهيز المحلي (على جهازك)
-افتح الترمينال (Terminal) في مجلد المشروع، ونفذ هذا الأمر السحري:
+## 1. Local Preparation (On Your Machine)
+Open the terminal in the project folder and run this command:
 ```bash
 npm run build
 ```
-*(هذا الأمر الآن سيقوم بتحديث قاعدة البيانات، بناء المشروع، ونسخ كل الملفات والصور تلقائياً إلى مجلد مخصص للرفع).*
+*(This command will now update the database, build the project, and automatically copy all files and images to a dedicated deployment folder).*
 
-## 2. الرفع إلى هوستنجر
-بعد انتهاء الأمر السابق بنجاح، اتبع الآتي:
-1. اذهب إلى مجلد المشروع على جهازك.
-2. ادخل إلى المجلد المخفي `.next` ثم إلى `standalone`.
-3. **قم بنسخ كل محتويات فولدر `standalone` بالكامل.**
-4. ارفع هذه المحتويات مباشرة إلى مجلد `public_html` في هوستنجر.
+## 2. Uploading to Hostinger
+After the previous command completes successfully, follow these steps:
+1. Go to the project folder on your machine.
+2. Enter the hidden folder `.next` then go to `standalone`.
+3. **Copy all contents of the `standalone` folder entirely.**
+4. Upload these contents directly to the `public_html` folder on Hostinger.
 
-**الشكل النهائي لمجلد `public_html` يجب أن يكون:**
+**The final structure of the `public_html` folder should be:**
 ```text
 /public_html
-  ├── .next/             (تم نسخه من standalone)
-  ├── node_modules/      (تم نسخه من standalone)
-  ├── public/            (الصور والملفات، تم نسخها تلقائياً)
-  ├── package.json       (تم نسخه من standalone)
-  └── server.js          (هذا هو ملف التشغيل، تم تعديله برمجياً ليقرأ الـ .env)
+  ├── .next/             (Copied from standalone)
+  ├── node_modules/      (Copied from standalone)
+  ├── public/            (Images and files, copied automatically)
+  ├── package.json       (Copied from standalone)
+  └── server.js          (The execution file, programmatically modified to read .env)
 ```
 
-## ملاحظات هامة
-- **لا تحتاج لنقل أي ملفات أخرى:** السكريبت الجديد (`prepare-hostinger.js`) قام بتجهيز ملف `server.js` لقراءة قاعدة البيانات تلقائياً من إعدادات هوستنجر المخفية (`.builds/config/.env`).
-- بمجرد الرفع، هوستنجر (نظام LiteSpeed/Passenger) سيقوم بتشغيل `server.js` بشكل تلقائي، وسيعمل الموقع بدون أي أخطاء 500 أو 503.
-- **في حالة تعديل الكود:** كل ما عليك فعله في المستقبل هو تكرار هذه الخطوات: `npm run build` ثم رفع محتويات `standalone` الجديدة.
+## Important Notes
+- **No need to transfer other files:** The new script (`prepare-hostinger.js`) has prepared the `server.js` file to read the database automatically from Hostinger's hidden settings (`.builds/config/.env`).
+- Once uploaded, Hostinger (LiteSpeed/Passenger system) will automatically run `server.js`, and the site will work without any 500 or 503 errors.
+- **In case of code modification:** All you need to do in the future is repeat these steps: `npm run build` then upload the new `standalone` contents.

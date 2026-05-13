@@ -9,11 +9,18 @@ import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import sharp from 'sharp';
 import { isWasabiConfigured, uploadBufferToWasabi } from '@/lib/wasabi';
+import { notifyNewChapter } from '@/lib/discord';
 
 const WEBP_MAX_DIMENSION = 16383;
 
 async function convertImage(input: Buffer, quality = 80): Promise<{ buffer: Buffer; ext: string }> {
     const meta = await sharp(input, { limitInputPixels: false }).metadata();
+
+    // If it's a GIF, keep it as is to preserve animation
+    if (meta.format === 'gif') {
+        return { buffer: input, ext: 'gif' };
+    }
+
     const w = meta.width ?? 0;
     const h = meta.height ?? 0;
 
@@ -155,28 +162,29 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         return imgUrl;
     });
 
-    // --- HEIGHT FILTER (Keep only images taller than 2000px) ---
+    // --- HEIGHT FILTER (Keep only images taller than 400px) ---
+    // This allows spliced images while still filtering out small icons or ads.
     const finalImageUrls: string[] = [];
     for (const imgUrl of candidateUrls) {
         try {
             const res = await axios.get(imgUrl, {
                 responseType: 'arraybuffer',
                 headers: { 'Referer': baseUrl },
-                timeout: 5000 // Short timeout to quickly skip broken images
+                timeout: 8000 // Short timeout to quickly skip broken images
             });
             const buffer = Buffer.from(res.data, 'binary');
             const meta = await sharp(buffer, { limitInputPixels: false }).metadata();
 
-            // Only keep images taller than 2000 pixels
-            if (meta.height && meta.height >= 2000) {
+            // Only keep images taller than 400 pixels (standard for most content slices)
+            if (meta.height && meta.height >= 400) {
                 finalImageUrls.push(imgUrl);
             }
         } catch (error) {
-            console.error(`Failed to check height for ${imgUrl}`);
+            console.error(`Failed to check dimensions for ${imgUrl}`);
         }
     }
 
-    if (finalImageUrls.length === 0) throw new Error(`No images taller than 2000px found on ${url}`);
+    if (finalImageUrls.length === 0) throw new Error(`No content images found on ${url} (Filtered out images smaller than 400px height)`);
 
     if (!autoPublish) return { images: finalImageUrls };
 
@@ -234,11 +242,18 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
 
     await prisma.manga.update({
         where: { id: mangaId },
-        data: { 
+        data: {
             updatedAt: new Date(),
             chapterCount: { increment: 1 }
         }
     });
+
+    // Notify Discord (Using existing webhooks in .env)
+    try {
+        await notifyNewChapter(manga, chapter, 'Auto Scraper');
+    } catch (discordErr) {
+        console.error("Failed to notify Discord:", discordErr);
+    }
 
     // Find Next Chapter URL
     let nextUrl = '';
@@ -247,7 +262,7 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         'a.next-chapter',
         'a.ch-next',
         'a:contains("Next")',
-        'a:contains("التالي")',
+        'a:contains("Next")',
         'link[rel="next"]'
     ];
 
@@ -267,25 +282,45 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const jobId = searchParams.get('jobId');
 
-    if (!jobId) {
-        return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+    if (jobId) {
+        const job = await prisma.scraperJob.findUnique({
+            where: { id: jobId }
+        });
+
+        if (!job) {
+            return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+        }
+
+        let parsedResults = null;
+        if (job.results) {
+            try { parsedResults = JSON.parse(job.results); } catch (e) { parsedResults = job.results; }
+        }
+
+        return NextResponse.json({
+            id: job.id,
+            status: job.status,
+            progress: job.progress,
+            error: job.error,
+            results: parsedResults
+        });
     }
 
-    const job = await prisma.scraperJob.findUnique({
-        where: { id: jobId }
+    // If no jobId, return recent jobs
+    const recentJobs = await prisma.scraperJob.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' }
     });
 
-    if (!job) {
-        return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({
-        id: job.id,
-        status: job.status,
-        progress: job.progress,
-        error: job.error,
-        results: job.results ? JSON.parse(job.results) : null
-    });
+    return NextResponse.json(recentJobs.map(job => {
+        let parsedResults = null;
+        if (job.results) {
+            try { parsedResults = JSON.parse(job.results); } catch (e) { parsedResults = job.results; }
+        }
+        return {
+            ...job,
+            results: parsedResults
+        };
+    }));
 }
 
 export async function POST(req: Request) {

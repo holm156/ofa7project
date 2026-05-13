@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   keywords: ['manhwa', 'manga', 'read online', 'duskscans', 'manhwa platform', 'free manhwa', 'comics'],
   icons: {
     icon: '/logo1.png',
+    shortcut: '/logo1.png',
+    apple: '/logo1.png',
   },
   alternates: {
     canonical: '/',
