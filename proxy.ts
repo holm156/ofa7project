@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname, searchParams } = request.nextUrl;
     const hostname = request.headers.get('host') || '';
     const error = searchParams.get('error');
@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     // Support both the old dash subdomain and the new main domain /admin path
     const isDashSubdomain = hostname.startsWith('dash.');
 
-    const isAssetOrAuth = ['/_next', '/api/auth', '/uploads', '/images', '/logo.png', '/favicon.ico', '/static'].some(p => pathname.startsWith(p));
+    const isAssetOrAuth = ['/_next', '/api/auth', '/uploads', '/images', '/logo.png', '/logo1.png', '/favicon.ico', '/static'].some(p => pathname.startsWith(p));
 
     // Fast skip for auth and assets to prevent any interference
     if (isAssetOrAuth) return NextResponse.next();
