@@ -18,6 +18,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    const session = await getServerSession(authOptions);
   // Security Check
   // Only admins and moderators can create manga
   // @ts-ignore

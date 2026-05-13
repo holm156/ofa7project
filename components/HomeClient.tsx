@@ -58,14 +58,23 @@ export default function HomeClient({ initialMangas }: HomeClientProps) {
         [...initialMangas].sort((a, b) => b.views - a.views).slice(0, 12),
         [initialMangas]);
 
-    const latestMangas = useMemo(() =>
+    const [currentPage, setCurrentPage] = useState(1);
+    const mangasPerPage = 12;
+
+    const sortedLatestMangas = useMemo(() =>
         [...initialMangas].sort((a, b) => {
-            const aLatest = a.chapterCount > 0 ? new Date(a.chapters[0].releaseDate).getTime() : 0;
-            const bLatest = b.chapterCount > 0 ? new Date(b.chapters[0].releaseDate).getTime() : 0;
+            const aLatest = (a.chapters && a.chapters.length > 0) ? new Date(a.chapters[0].releaseDate).getTime() : 0;
+            const bLatest = (b.chapters && b.chapters.length > 0) ? new Date(b.chapters[0].releaseDate).getTime() : 0;
             if (bLatest !== aLatest) return bLatest - aLatest;
             return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        }).slice(0, 12),
-        [initialMangas]);
+        }), [initialMangas]);
+
+    const totalPages = Math.ceil(sortedLatestMangas.length / mangasPerPage);
+
+    const latestMangas = useMemo(() => {
+        const start = (currentPage - 1) * mangasPerPage;
+        return sortedLatestMangas.slice(start, start + mangasPerPage);
+    }, [sortedLatestMangas, currentPage]);
 
     const topPicks = useMemo(() =>
         [...initialMangas].sort((a, b) => b.rating - a.rating).slice(0, 6),
@@ -214,6 +223,90 @@ export default function HomeClient({ initialMangas }: HomeClientProps) {
                             );
                         })}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="mt-12 flex flex-col items-center justify-center gap-8 py-8 border-t border-white/5">
+                            <div className="flex flex-wrap items-center justify-center gap-3">
+                                <button
+                                    onClick={() => {
+                                        setCurrentPage(1);
+                                        window.scrollTo({ top: 800, behavior: 'smooth' });
+                                    }}
+                                    disabled={currentPage === 1}
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all group"
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" /></svg>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setCurrentPage(prev => Math.max(1, prev - 1));
+                                        window.scrollTo({ top: 800, behavior: 'smooth' });
+                                    }}
+                                    disabled={currentPage === 1}
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                >
+                                    <ChevronRight className="w-5 h-5 rotate-180" />
+                                </button>
+
+                                <div className="flex items-center gap-2 px-2">
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const pageNum = i + 1;
+                                        if (
+                                            pageNum === 1 || 
+                                            pageNum === totalPages || 
+                                            (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                        ) {
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => {
+                                                        setCurrentPage(pageNum);
+                                                        window.scrollTo({ top: 800, behavior: 'smooth' });
+                                                    }}
+                                                    className={`w-10 h-10 rounded-xl font-black text-sm transition-all border ${
+                                                        currentPage === pageNum
+                                                            ? 'bg-[#e11d48] border-[#e11d48] text-white shadow-[0_0_20px_rgba(225,29,72,0.4)] scale-110'
+                                                            : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        }
+                                        if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                                            return <span key={pageNum} className="text-zinc-600 px-1 font-bold">...</span>;
+                                        }
+                                        return null;
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => {
+                                        setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                                        window.scrollTo({ top: 800, behavior: 'smooth' });
+                                    }}
+                                    disabled={currentPage === totalPages}
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                >
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setCurrentPage(totalPages);
+                                        window.scrollTo({ top: 800, behavior: 'smooth' });
+                                    }}
+                                    disabled={currentPage === totalPages}
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all"
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>
+                                </button>
+                            </div>
+                            <div className="text-zinc-500 text-xs font-black uppercase tracking-[0.2em] bg-white/5 px-4 py-2 rounded-lg border border-white/5">
+                                Page <span className="text-primary">{currentPage}</span> <span className="text-zinc-700 mx-1">/</span> <span className="text-white">{totalPages}</span>
+                            </div>
+                        </div>
+                    )}
                 </section>
 
                 {/* COLLECTIONS */}

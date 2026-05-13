@@ -1820,7 +1820,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-3">
+                                        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                             {scraperJobs.length === 0 ? (
                                                 <div className="py-12 text-center border border-dashed border-white/5 rounded-xl">
                                                     <p className="text-zinc-500 text-sm italic">No recent jobs found.</p>
