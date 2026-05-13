@@ -389,10 +389,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         <StoreContext.Provider value={storeValue}>
             {loading ? (
                 <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[50]">
-                    <div className="w-24 h-24 flex items-center justify-center animate-pulse mb-4">
-                        <img src="/logo.png" alt="DuskScans" className="w-full h-full object-contain" />
+                    <div className="relative mb-6">
+                        <img src="/logo1.png" alt="Loading" className="w-20 h-20 object-contain relative z-10" />
+                        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse"></div>
                     </div>
-                    <p className="text-zinc-500 font-medium animate-pulse">Initializing Dusk...</p>
                 </div>
             ) : (
                 children

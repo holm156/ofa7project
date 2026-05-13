@@ -15,7 +15,7 @@ export async function notifyNewChapter(manga: any, chapter: any, uploaderName: s
     const chapterUrl = `${siteUrl}/series/${manga.slug}/chapter-${chapter.number}`;
     const coverUrl = manga.cover ? (manga.cover.startsWith('http') ? manga.cover : `${siteUrl}${manga.cover}`) : null;
 
-    const logoUrl = `${siteUrl}/logo.png`;
+    const logoUrl = `${siteUrl}/logo1.png`;
 
     const embed = {
         author: {
@@ -167,7 +167,7 @@ export async function notifyCoinTransaction(
         fields: fields,
         footer: {
             text: notificationType === 'PURCHASE' ? "DuskScans Purchases" : "DuskScans Ledger",
-            icon_url: `${siteUrl}/logo.png`
+            icon_url: `${siteUrl}/logo1.png`
         },
         timestamp: new Date().toISOString()
     };

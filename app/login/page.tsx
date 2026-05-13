@@ -57,14 +57,14 @@ const Login: React.FC = () => {
     <div className="min-h-[80vh] flex items-center justify-center">
       <Card className="w-full max-w-md p-8 border-t-4 border-t-primary bg-surface/50 backdrop-blur">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Legion Scans" className="w-24 h-24 mx-auto mb-6 drop-shadow-2xl object-contain" />
+          <img src="/logo1.png" alt="Dusk Scans" className="w-24 h-24 mx-auto mb-6 drop-shadow-2xl object-contain" />
           <h1 className="text-2xl font-bold mb-2">
             {isAdminPortal ? (isLogin ? 'Admin Portal' : 'Restricted') : (isLogin ? 'Welcome Back' : 'Create Account')}
           </h1>
           <p className="text-zinc-500 text-sm">
             {isAdminPortal
               ? (isLogin ? 'Authorized personnel only' : 'Unauthorized Access')
-              : (isLogin ? 'Enter your details to access your library' : 'Join Legion Scans today for free')}
+              : (isLogin ? 'Enter your details to access your library' : 'Join Dusk Scans today for free')}
           </p>
 
         </div>
