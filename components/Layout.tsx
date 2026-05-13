@@ -106,7 +106,7 @@ export const Navbar: React.FC = () => {
         <header className="dusk-topbar">
             {/* Logo */}
             <Link href="/" className="dusk-topbar-logo !w-auto pl-6 pr-4">
-                <img src="/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
+                <img src="/logo1.png" alt="Logo" className="h-12 w-auto object-contain" />
             </Link>
 
             {/* Desktop Search */}
@@ -204,7 +204,7 @@ export const Navbar: React.FC = () => {
                                                 </div>
                                             ) : (
                                                 <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center border ${notif.type === 'like' ? 'bg-rose-500/10 border-rose-500/20' : 'bg-surfaceHighlight border-white/10'}`}>
-                                                    {notif.type === 'like' ? <Star className="w-5 h-5 text-rose-500 fill-rose-500" /> : <img src="/logo.png" alt="" className="w-6 h-6 object-contain opacity-50" />}
+                                                    {notif.type === 'like' ? <Star className="w-5 h-5 text-rose-500 fill-rose-500" /> : <img src="/logo1.png" alt="" className="w-6 h-6 object-contain opacity-50" />}
                                                 </div>
                                             )}
 
@@ -255,7 +255,7 @@ export const Navbar: React.FC = () => {
                             <div className="w-8 h-8 rounded-full bg-surfaceHighlight border border-white/10 overflow-hidden flex items-center justify-center">
                                 {currentUser.image
                                     ? <img src={getImageUrl(currentUser.image)} alt="" className="w-full h-full object-cover" />
-                                    : <img src="/logo.png" alt="" className="w-full h-full object-contain p-1" />}
+                                    : <img src="/logo1.png" alt="" className="w-full h-full object-contain p-1" />}
                             </div>
                             <span className="text-sm font-medium hidden sm:block text-white">{currentUser.username}</span>
                         </button>
@@ -430,7 +430,7 @@ export const MobileBottomNav: React.FC = () => {
                     return (
                         <Link key={i} href="/" className="dusk-bottom-nav-brand">
                             <div className="dusk-bottom-nav-brand-inner">
-                                <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
+                                <img src="/logo1.png" alt="Logo" className="w-6 h-6 object-contain" />
                             </div>
                         </Link>
                     );

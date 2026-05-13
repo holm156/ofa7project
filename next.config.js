@@ -15,12 +15,6 @@ const nextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has lint errors.
-    ignoreDuringBuilds: true,
-  },
   output: 'standalone',
   async headers() {
     return [
