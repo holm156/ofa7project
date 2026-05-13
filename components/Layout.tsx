@@ -371,7 +371,7 @@ export const Sidebar: React.FC = () => {
     }
 
     const communityNav = [
-        { href: 'https://discord.gg/9MndT8DGMF', icon: <MessageSquare className="w-5 h-5" />, label: 'Discord' },
+        { href: 'https://discord.gg/ZWPMNV7SzK', icon: <MessageSquare className="w-5 h-5" />, label: 'Discord' },
     ];
 
     return (
