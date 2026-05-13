@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: 'Dusk Scans is a manhwa reading platform built for speed, featuring high-quality translations and daily updates.',
   keywords: ['manhwa', 'manga', 'read online', 'duskscans', 'manhwa platform', 'free manhwa', 'comics'],
   icons: {
-    icon: '/logo.png',
+    icon: '/logo1.png',
   },
   alternates: {
     canonical: '/',
