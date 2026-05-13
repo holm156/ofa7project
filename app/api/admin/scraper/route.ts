@@ -263,6 +263,31 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
     return { success: true, chapterId: chapter.id, imagesCount: localPages.length, images: localPages, nextUrl };
 }
 
+export async function GET(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const jobId = searchParams.get('jobId');
+
+    if (!jobId) {
+        return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+    }
+
+    const job = await prisma.scraperJob.findUnique({
+        where: { id: jobId }
+    });
+
+    if (!job) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+        id: job.id,
+        status: job.status,
+        progress: job.progress,
+        error: job.error,
+        results: job.results ? JSON.parse(job.results) : null
+    });
+}
+
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     // @ts-ignore
@@ -277,46 +302,90 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'URLs are required' }, { status: 400 });
         }
 
-        const results: any[] = [];
-        let baseChapterNum = parseFloat(chapterNumber) || 1;
-
-        for (let i = 0; i < urls.length; i++) {
-            const url = urls[i];
-            const currentChapterNum = (baseChapterNum + i).toString();
-
-            // Add delay for bulk requests (except the first one)
-            if (i > 0) {
-                console.log(`Waiting 3 second before scraping next chapter: ${url}...`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
+        // Create a new background job
+        const job = await prisma.scraperJob.create({
+            data: {
+                status: 'processing',
+                progress: 0
             }
+        });
+
+        // Start the background process (DO NOT await)
+        (async () => {
+            const results: any[] = [];
+            let baseChapterNum = parseFloat(chapterNumber) || 1;
+
             try {
-                const res = await scrapeSingleUrl(
-                    url,
-                    mangaId,
-                    isBulk ? currentChapterNum : chapterNumber,
-                    isBulk ? `${chapterTitle || 'Chapter'} ${currentChapterNum}` : chapterTitle,
-                    autoPublish,
-                    sourceName,
-                    sourceColor
-                );
-                results.push({ url, ...res });
+                for (let i = 0; i < urls.length; i++) {
+                    const url = urls[i];
+                    const currentChapterNum = (baseChapterNum + i).toString();
+
+                    // Update progress
+                    await prisma.scraperJob.update({
+                        where: { id: job.id },
+                        data: { progress: Math.floor((i / urls.length) * 100) }
+                    });
+
+                    // Add delay for bulk requests (except the first one)
+                    if (i > 0) {
+                        console.log(`Waiting 3 second before scraping next chapter: ${url}...`);
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                    }
+                    try {
+                        const res = await scrapeSingleUrl(
+                            url,
+                            mangaId,
+                            isBulk ? currentChapterNum : chapterNumber,
+                            isBulk ? `${chapterTitle || 'Chapter'} ${currentChapterNum}` : chapterTitle,
+                            autoPublish,
+                            sourceName,
+                            sourceColor
+                        );
+                        results.push({ url, ...res });
+                    } catch (err: any) {
+                        results.push({ url, error: err.message });
+                    }
+                }
+
+                const successCount = results.filter(r => r.success === true).length;
+                const hasImages = !isBulk && results[0]?.images && results[0].images.length > 0;
+
+                const finalResults = {
+                    success: autoPublish && successCount > 0,
+                    results,
+                    images: hasImages ? results[0].images : undefined,
+                    imagesCount: results.reduce((acc: number, r: any) => acc + (r.imagesCount || 0), 0)
+                };
+
+                // Mark job as completed
+                await prisma.scraperJob.update({
+                    where: { id: job.id },
+                    data: {
+                        status: 'completed',
+                        progress: 100,
+                        results: JSON.stringify(finalResults)
+                    }
+                });
             } catch (err: any) {
-                results.push({ url, error: err.message });
+                console.error("Background Scraper Error:", err);
+                await prisma.scraperJob.update({
+                    where: { id: job.id },
+                    data: {
+                        status: 'failed',
+                        error: err.message || 'Scraper failed'
+                    }
+                });
             }
-        }
+        })();
 
-        const successCount = results.filter(r => r.success === true).length;
-        const hasImages = !isBulk && results[0]?.images && results[0].images.length > 0;
-
+        // Return the jobId immediately
         return NextResponse.json({
-            success: autoPublish && successCount > 0,
-            results,
-            images: hasImages ? results[0].images : undefined,
-            imagesCount: results.reduce((acc: number, r: any) => acc + (r.imagesCount || 0), 0)
+            message: 'Scraping started in background',
+            jobId: job.id
         });
 
     } catch (e: any) {
-        console.error("Scraper Error:", e);
-        return NextResponse.json({ error: e.message || 'Scraper failed' }, { status: 500 });
+        console.error("Scraper POST Error:", e);
+        return NextResponse.json({ error: e.message || 'Failed to start scraper' }, { status: 500 });
     }
 }

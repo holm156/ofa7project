@@ -306,3 +306,15 @@ model ViewHistory {
   @@index([mangaId], map: "ViewHistory_mangaId_idx")
   @@map("ViewHistory")
 }
+
+model ScraperJob {
+  id        String   @id @default(cuid())
+  status    String   @default("pending") // "pending", "processing", "completed", "failed"
+  progress  Int      @default(0)
+  results   String?  @db.LongText // JSON string
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ScraperJob")
+}

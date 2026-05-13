@@ -896,30 +896,67 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                 })
             });
 
-            if (progressInterval) clearInterval(progressInterval);
-            setScraperProgress(100);
-
-            const data = await res.json();
-            if (res.ok) {
-                setScraperResult(data);
-                setExpandedBulkIndices([]); // Reset expansion state
-                showToast(data.success ? 'Process finished successfully!' : 'Images extracted!', 'success');
-                if (data.success) {
-                    setScraperUrl('');
-                    setScraperBulkUrls('');
-                    setScraperChapterNumber('');
-                    setScraperChapterTitle('');
-                    setScraperSourceName('');
-                    setScraperSourceColor('#e11d48');
-                }
-            } else {
-                showToast(data.error || 'Scraping failed', 'error');
+            const initData = await res.json();
+            
+            if (!res.ok) {
+                if (progressInterval) clearInterval(progressInterval);
+                showToast(initData.error || 'Failed to start scraper', 'error');
+                setIsScraping(false);
+                return;
             }
+
+            const jobId = initData.jobId;
+            showToast('Scraper started in background...', 'info');
+
+            // --- Polling Logic ---
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await fetch(`/api/admin/scraper?jobId=${jobId}`);
+                    const job = await statusRes.json();
+
+                    if (!statusRes.ok) throw new Error(job.error || 'Failed to poll status');
+
+                    setScraperProgress(job.progress);
+
+                    if (job.status === 'completed') {
+                        clearInterval(pollInterval);
+                        if (progressInterval) clearInterval(progressInterval);
+                        setScraperProgress(100);
+                        setIsScraping(false);
+
+                        const data = job.results;
+                        setScraperResult(data);
+                        setExpandedBulkIndices([]);
+                        showToast(data.success ? 'Process finished successfully!' : 'Images extracted!', 'success');
+                        
+                        if (data.success) {
+                            setScraperUrl('');
+                            setScraperBulkUrls('');
+                            setScraperChapterNumber('');
+                            setScraperChapterTitle('');
+                            setScraperSourceName('');
+                            setScraperSourceColor('#e11d48');
+                        }
+                    } else if (job.status === 'failed') {
+                        clearInterval(pollInterval);
+                        if (progressInterval) clearInterval(progressInterval);
+                        setIsScraping(false);
+                        showToast(job.error || 'Scraping failed in background', 'error');
+                    }
+                } catch (pollErr: any) {
+                    console.error("Polling error:", pollErr);
+                    clearInterval(pollInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    setIsScraping(false);
+                    showToast('Lost connection to scraper job status', 'error');
+                }
+            }, 3000); // Poll every 3 seconds
+
         } catch (err) {
             console.error(err);
-            showToast('Failed to connect to scraper', 'error');
-        } finally {
+            if (progressInterval) clearInterval(progressInterval);
             setIsScraping(false);
+            showToast('Failed to connect to scraper', 'error');
         }
     };
 
