@@ -279,6 +279,12 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
 }
 
 export async function GET(req: Request) {
+    const session = await getServerSession(authOptions);
+    // @ts-ignore
+    if (!session || session.user?.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const jobId = searchParams.get('jobId');
 

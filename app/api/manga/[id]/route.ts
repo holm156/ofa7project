@@ -8,6 +8,7 @@ export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
+    const session = await getServerSession(authOptions);
     // Only admins and moderators can modify/delete manga
     // @ts-ignore
     if (!session || (session.user?.role !== 'admin' && session.user?.role !== 'moderator')) {
@@ -69,6 +70,7 @@ export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
+    const session = await getServerSession(authOptions);
     // Only admins and moderators can modify/delete manga
     // @ts-ignore
     if (!session || (session.user?.role !== 'admin' && session.user?.role !== 'moderator')) {
