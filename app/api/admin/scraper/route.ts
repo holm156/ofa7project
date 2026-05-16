@@ -162,26 +162,34 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         return imgUrl;
     });
 
-    // --- HEIGHT FILTER (Keep only images taller than 400px) ---
-    // This allows spliced images while still filtering out small icons or ads.
+    // --- HEIGHT FILTER (Parallel Batches of 15) ---
     const finalImageUrls: string[] = [];
-    for (const imgUrl of candidateUrls) {
-        try {
-            const res = await axios.get(imgUrl, {
-                responseType: 'arraybuffer',
-                headers: { 'Referer': baseUrl },
-                timeout: 8000 // Short timeout to quickly skip broken images
-            });
-            const buffer = Buffer.from(res.data, 'binary');
-            const meta = await sharp(buffer, { limitInputPixels: false }).metadata();
+    const FILTER_BATCH_SIZE = 15;
+    
+    for (let i = 0; i < candidateUrls.length; i += FILTER_BATCH_SIZE) {
+        const batch = candidateUrls.slice(i, i + FILTER_BATCH_SIZE);
+        const results = await Promise.all(batch.map(async (imgUrl) => {
+            try {
+                const res = await axios.get(imgUrl, {
+                    responseType: 'arraybuffer',
+                    headers: { 'Referer': baseUrl },
+                    timeout: 8000
+                });
+                const buffer = Buffer.from(res.data, 'binary');
+                const meta = await sharp(buffer, { limitInputPixels: false }).metadata();
 
-            // Only keep images taller than 400 pixels (standard for most content slices)
-            if (meta.height && meta.height >= 400) {
-                finalImageUrls.push(imgUrl);
+                if (meta.height && meta.height >= 400) {
+                    return imgUrl;
+                }
+            } catch (error) {
+                console.error(`Failed to check dimensions for ${imgUrl}`);
             }
-        } catch (error) {
-            console.error(`Failed to check dimensions for ${imgUrl}`);
-        }
+            return null;
+        }));
+        
+        results.forEach(res => {
+            if (res) finalImageUrls.push(res);
+        });
     }
 
     if (finalImageUrls.length === 0) throw new Error(`No content images found on ${url} (Filtered out images smaller than 400px height)`);
@@ -202,30 +210,39 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         await mkdir(uploadDir, { recursive: true });
     }
 
-    const localPages: string[] = [];
-    for (let i = 0; i < finalImageUrls.length; i++) {
-        try {
-            const imgRes = await axios.get(finalImageUrls[i], {
-                responseType: 'arraybuffer',
-                headers: { 'Referer': new URL(url).origin }
-            });
-            const { buffer, ext } = await convertImage(Buffer.from(imgRes.data));
-            const filename = `${(i + 1).toString().padStart(3, '0')}.${ext}`;
-            if (useWasabi) {
-                const objectKey = `${chapterFolder}/${filename}`;
-                const uploadedUrl = await uploadBufferToWasabi(objectKey, buffer, getContentTypeByExt(ext));
-                localPages.push(uploadedUrl);
-            } else {
-                const filepath = path.join(uploadDir, filename);
-                await writeFile(filepath, buffer);
-                localPages.push(`/api/${chapterFolder}/${filename}`);
+    const localPages: string[] = new Array(finalImageUrls.length).fill(null);
+    const DOWNLOAD_BATCH_SIZE = 8;
+
+    for (let i = 0; i < finalImageUrls.length; i += DOWNLOAD_BATCH_SIZE) {
+        const batchIndices = Array.from({ length: Math.min(DOWNLOAD_BATCH_SIZE, finalImageUrls.length - i) }, (_, k) => i + k);
+        
+        await Promise.all(batchIndices.map(async (idx) => {
+            const imgUrl = finalImageUrls[idx];
+            try {
+                const imgRes = await axios.get(imgUrl, {
+                    responseType: 'arraybuffer',
+                    headers: { 'Referer': new URL(url).origin }
+                });
+                const { buffer, ext } = await convertImage(Buffer.from(imgRes.data));
+                const filename = `${(idx + 1).toString().padStart(3, '0')}.${ext}`;
+                
+                if (useWasabi) {
+                    const objectKey = `${chapterFolder}/${filename}`;
+                    const uploadedUrl = await uploadBufferToWasabi(objectKey, buffer, getContentTypeByExt(ext));
+                    localPages[idx] = uploadedUrl;
+                } else {
+                    const filepath = path.join(uploadDir, filename);
+                    await writeFile(filepath, buffer);
+                    localPages[idx] = `/api/${chapterFolder}/${filename}`;
+                }
+            } catch (err) {
+                console.error(`Failed to download image from ${imgUrl}`);
             }
-        } catch (err) {
-            console.error(`Failed to download image from ${finalImageUrls[i]}`);
-        }
+        }));
     }
 
-    if (localPages.length === 0) throw new Error('Failed to download images');
+    const filteredPages = localPages.filter(p => p !== null);
+    if (filteredPages.length === 0) throw new Error('Failed to download images');
 
     const chapter = await prisma.chapter.create({
         data: {
@@ -233,7 +250,7 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
             mangaId: mangaId,
             title: chapterTitle || `Chapter ${chapterNumber}`,
             number: parseFloat(chapterNumber),
-            pages: JSON.stringify(localPages),
+            pages: JSON.stringify(filteredPages),
             sourceName: sourceName,
             sourceColor: sourceColor,
             updatedAt: new Date()

@@ -209,6 +209,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [isCleanupMangaDropdownOpen, setIsCleanupMangaDropdownOpen] = useState(false);
     const [cleanupMangaDropdownSearch, setCleanupMangaDropdownSearch] = useState('');
     const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
+    const [resFilterMode, setResFilterMode] = useState<'exact' | 'lessThan'>('exact');
 
     // Transactions State
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -463,7 +464,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             showToast(`Starting scan for ${chapters.length} chapters...`, 'info');
             const found: typeof foundImages = [];
 
-            // We process chapters sequentially to avoid overloading the browser
+            // We process chapters sequentially, but pages within each chapter in parallel batches
             for (let chIdx = 0; chIdx < chapters.length; chIdx++) {
                 const ch = chapters[chIdx];
                 setScanProgress(prev => ({ ...prev, current: chIdx + 1 }));
@@ -471,40 +472,51 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                 const pages = typeof ch.pages === 'string' ? JSON.parse(ch.pages) : ch.pages;
                 if (!Array.isArray(pages)) continue;
 
-                // Process pages in small batches to maintain UI responsiveness
-                for (let i = 0; i < pages.length; i++) {
-                    const url = getImageUrl(pages[i]);
-                    try {
-                        const dims = await new Promise<{w: number, h: number}>((resolve, reject) => {
-                            const img = new window.Image();
-                            const timeout = setTimeout(() => {
-                                img.src = ""; // Stop loading
-                                reject(new Error("Timeout"));
-                            }, 5000); // 5s timeout per image
+                // Process pages in parallel batches of 40 (Optimized for your server specs)
+                const BATCH_SIZE = 40;
+                for (let i = 0; i < pages.length; i += BATCH_SIZE) {
+                    const batch = pages.slice(i, i + BATCH_SIZE);
+                    const results = await Promise.all(batch.map(async (pageUrl, batchIdx) => {
+                        const url = getImageUrl(pageUrl);
+                        try {
+                            const dims = await new Promise<{w: number, h: number}>((resolve, reject) => {
+                                const img = new window.Image();
+                                const timeout = setTimeout(() => {
+                                    img.src = "";
+                                    reject(new Error("Timeout"));
+                                }, 8000); 
 
-                            img.onload = () => {
-                                clearTimeout(timeout);
-                                resolve({ w: img.width, h: img.height });
-                            };
-                            img.onerror = () => {
-                                clearTimeout(timeout);
-                                reject(new Error("Load fail"));
-                            };
-                            img.src = url;
-                        });
-
-                        if (dims.w === w && dims.h === h) {
-                            found.push({
-                                chapterId: ch.id,
-                                chapterNumber: ch.number,
-                                imageUrl: pages[i],
-                                index: i
+                                img.onload = () => {
+                                    clearTimeout(timeout);
+                                    resolve({ w: img.width, h: img.height });
+                                };
+                                img.onerror = () => {
+                                    clearTimeout(timeout);
+                                    reject(new Error("Load fail"));
+                                };
+                                img.src = url;
                             });
+
+                            const matchesW = !w || (resFilterMode === 'exact' ? dims.w === w : dims.w <= w);
+                            const matchesH = !h || (resFilterMode === 'exact' ? dims.h === h : dims.h <= h);
+
+                            if (matchesW && matchesH) {
+                                return {
+                                    chapterId: ch.id,
+                                    chapterNumber: ch.number,
+                                    imageUrl: pageUrl,
+                                    index: i + batchIdx
+                                };
+                            }
+                        } catch (e) {
+                            console.warn("Failed to check image", url);
                         }
-                    } catch (e) {
-                        // Skip broken images
-                        console.warn(`Skipping image ${url} due to load error`);
-                    }
+                        return null;
+                    }));
+
+                    results.forEach(res => {
+                        if (res) found.push(res);
+                    });
                 }
             }
 
@@ -1579,20 +1591,41 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         </div>
                                     </div>
 
+                                    <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/5 mb-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setResFilterMode('exact')}
+                                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${resFilterMode === 'exact' ? 'bg-primary text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                        >
+                                            Exact Match
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setResFilterMode('lessThan')}
+                                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${resFilterMode === 'lessThan' ? 'bg-primary text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                        >
+                                            Less Than
+                                        </button>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
                                             <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">Width (px)</label>
                                             <input 
                                                 type="number" 
+                                                placeholder={resFilterMode === 'exact' ? "e.g. 720" : "Ignore"}
                                                 className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
                                                 value={resFilterWidth}
                                                 onChange={e => setResFilterWidth(e.target.value)}
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">Height (px)</label>
+                                            <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">
+                                                {resFilterMode === 'exact' ? 'Height (px)' : 'Max Height'}
+                                            </label>
                                             <input 
                                                 type="number" 
+                                                placeholder={resFilterMode === 'exact' ? "e.g. 1280" : "e.g. 500"}
                                                 className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
                                                 value={resFilterHeight}
                                                 onChange={e => setResFilterHeight(e.target.value)}
