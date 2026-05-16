@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useStore } from '../context/StoreContext';
 import {
     Bookmark, Star, Lock, Unlock, Gem, X, Share2,
-    ChevronDown, ChevronUp, ChevronRight, ShoppingCart
+    ChevronDown, ChevronUp, ChevronRight, ShoppingCart, Search
 } from 'lucide-react';
 import { Chapter, Manga, Comment } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -96,9 +96,9 @@ const ChapterListItem = ({ chapter, mangaSlug, isUnlocked, onUnlockClick, badgeT
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-zinc-300">Chapter {chapter.number}</span>
                     {chapter.sourceName && (
-                        <div 
+                        <div
                             className="flex items-center gap-1.5 px-2 py-0.5 rounded-md border shadow-sm transition-all"
-                            style={{ 
+                            style={{
                                 backgroundColor: `${chapter.sourceColor || '#e11d48'}15`,
                                 borderColor: `${chapter.sourceColor || '#e11d48'}30`,
                                 color: chapter.sourceColor || '#e11d48'
@@ -149,13 +149,31 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
     const [showUnlockModal, setShowUnlockModal] = useState<Chapter | null>(null);
     const [showBulkModal, setShowBulkModal] = useState<{ count: number, totalCost: number, chapters: Chapter[] } | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [chapterSearch, setChapterSearch] = useState('');
     const chaptersPerPage = 20;
-    const totalPages = Math.ceil(initialChapters.length / chaptersPerPage);
+    const filteredChapters = useMemo(() => {
+        if (!chapterSearch.trim()) return initialChapters;
+        return initialChapters.filter(ch => 
+            ch.number.toString().includes(chapterSearch) || 
+            (ch.title && ch.title.toLowerCase().includes(chapterSearch.toLowerCase()))
+        );
+    }, [initialChapters, chapterSearch]);
+
+    const totalPages = Math.ceil(filteredChapters.length / chaptersPerPage);
+
+    const sortedChapters = useMemo(() => {
+        return [...filteredChapters].sort((a, b) => b.number - a.number); // Keep descending for display
+    }, [filteredChapters]);
 
     const paginatedChapters = useMemo(() => {
         const start = (currentPage - 1) * chaptersPerPage;
-        return initialChapters.slice(start, start + chaptersPerPage);
-    }, [initialChapters, currentPage]);
+        return sortedChapters.slice(start, start + chaptersPerPage);
+    }, [sortedChapters, currentPage]);
+
+    // Reset to page 1 when searching
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [chapterSearch]);
 
     const [commentCount, setCommentCount] = useState(initialComments.length);
     const [locallyUnlockedIds, setLocallyUnlockedIds] = useState<string[]>([]);
@@ -250,9 +268,6 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                         <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md border border-white/10 text-white text-[13px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-black/50">
                                             {manga.rating || '0'} <Star className="w-3 h-3 fill-white text-white" />
                                         </div>
-                                        <button onClick={() => toggleBookmark(manga.id)} className="absolute top-4 right-4 w-9 h-9 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center text-white hover:bg-white/20 transition-colors shadow-lg shadow-black/50">
-                                            <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
-                                        </button>
 
                                         <div className="absolute bottom-4 left-4 right-4 flex gap-3 z-10">
                                             <Link href={firstChapter ? `/series/${manga.slug}/chapter-${firstChapter.number}` : '#'} className="flex-1 bg-[#dc143c] hover:bg-[#be123c] text-white font-bold rounded-xl flex items-center justify-center h-[50px] transition-colors shadow-[0_0_20px_rgba(220,20,60,0.4)] text-[15px]">
@@ -304,7 +319,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                     <button onClick={() => toggleBookmark(manga.id)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors font-medium">
                                         <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} /> Add to Bookmark
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             navigator.clipboard.writeText(window.location.href);
                                             showToast('Manga link copied to clipboard!', 'success');
@@ -415,19 +430,42 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
 
                     {/* RIGHT SIDE (Chapters) */}
                     <div className="bg-[#0a0a0a] rounded-2xl border border-white/5 flex flex-col h-[600px] lg:h-[0px] lg:min-h-full">
-                        <div className="p-4 lg:p-6 border-b border-white/5 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <h3 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-2">
-                                    Chapters
-                                    <span className="bg-[#e11d48]/20 text-[#e11d48] text-xs px-2 py-0.5 rounded-md">{manga.chapterCount}</span>
-                                </h3>
-                                <button
-                                    onClick={() => document.getElementById('comment-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="text-lg font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 group"
-                                >
-                                    Comments
-                                    <span className="bg-white/5 group-hover:bg-white/10 text-zinc-400 group-hover:text-[#dc143c] text-xs px-2 py-0.5 rounded-md transition-colors border border-white/5 group-hover:border-[#dc143c]/30">{commentCount}</span>
-                                </button>
+                        <div className="p-4 lg:p-6 border-b border-white/5 space-y-4">
+                            <div className="flex items-center justify-between gap-3 sm:gap-6">
+                                <div className="flex items-center gap-3 sm:gap-6">
+                                    <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2">
+                                        Chapters
+                                        <span className="bg-[#e11d48]/20 text-[#e11d48] text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-md">{manga.chapterCount}</span>
+                                    </h3>
+                                    <button
+                                        onClick={() => document.getElementById('comment-section')?.scrollIntoView({ behavior: 'smooth' })}
+                                        className="text-base sm:text-lg font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 group"
+                                    >
+                                        Comments
+                                        <span className="bg-white/5 group-hover:bg-white/10 text-zinc-400 group-hover:text-[#dc143c] text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-md transition-colors border border-white/5 group-hover:border-[#dc143c]/30">{commentCount}</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                    <Search className="w-3.5 h-3.5 text-zinc-500 group-focus-within:text-[#e11d48] transition-colors" />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search by chapter number..."
+                                    className="w-full bg-white/5 border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#e11d48]/50 focus:border-[#e11d48]/50 transition-all placeholder:text-zinc-600 font-bold"
+                                    value={chapterSearch}
+                                    onChange={(e) => setChapterSearch(e.target.value)}
+                                />
+                                {chapterSearch && (
+                                    <button 
+                                        onClick={() => setChapterSearch('')}
+                                        className="absolute inset-y-0 right-3 flex items-center text-zinc-500 hover:text-white transition-colors"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col">
@@ -488,22 +526,24 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                         <div className="flex items-center gap-1.5 px-1">
                                             {[...Array(totalPages)].map((_, i) => {
                                                 const pageNum = i + 1;
+                                                const displayLabel = totalPages - pageNum + 1;
+                                                const isActive = currentPage === pageNum;
+
                                                 if (
-                                                    pageNum === 1 || 
-                                                    pageNum === totalPages || 
+                                                    pageNum === 1 ||
+                                                    pageNum === totalPages ||
                                                     (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
                                                 ) {
                                                     return (
                                                         <button
                                                             key={pageNum}
                                                             onClick={() => setCurrentPage(pageNum)}
-                                                            className={`w-9 h-9 rounded-lg font-bold text-xs transition-all border ${
-                                                                currentPage === pageNum
+                                                            className={`w-9 h-9 rounded-lg font-bold text-xs transition-all border ${isActive
                                                                     ? 'bg-[#e11d48] border-[#e11d48] text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]'
                                                                     : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
-                                                            }`}
+                                                                }`}
                                                         >
-                                                            {pageNum}
+                                                            {displayLabel}
                                                         </button>
                                                     );
                                                 }
@@ -530,7 +570,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                         </button>
                                     </div>
                                     <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest order-1 sm:order-2">
-                                        Page <span className="text-white">{currentPage}</span> of <span className="text-white">{totalPages}</span>
+                                        Page <span className="text-white">{totalPages - currentPage + 1}</span> of <span className="text-white">{totalPages}</span>
                                     </div>
                                 </div>
                             )}

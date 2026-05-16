@@ -134,7 +134,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [mangas, setMangas] = useState<Manga[]>(initialMangas);
     const featuredMangaIds = mangas.filter(m => m.isFeatured).map(m => m.id);
 
-    const [activeTab, setActiveTab] = useState<'manga' | 'chapters' | 'slider' | 'users' | 'promo' | 'transactions' | 'analytics' | 'scraper'>('manga');
+    const [activeTab, setActiveTab] = useState<'manga' | 'chapters' | 'slider' | 'users' | 'promo' | 'transactions' | 'analytics' | 'scraper' | 'cleanup'>('manga');
 
     // Sync activeTab with ?tab= query param
     useEffect(() => {
@@ -153,7 +153,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
         type: 'Manhwa' as 'Manhwa' | 'Manga' | 'Manhua',
         genres: [] as string[],
         discordRoleId: '',
-        releaseYear: '2025'
+        releaseYear: '2025',
+        views: 0,
+        updatedAt: ''
     });
     const [customGenre, setCustomGenre] = useState('');
     const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -176,6 +178,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [chapterPrice, setChapterPrice] = useState('0');
     const [chapterFreeDate, setChapterFreeDate] = useState('');
+    const [chapterSourceName, setChapterSourceName] = useState('');
+    const [chapterSourceColor, setChapterSourceColor] = useState('#e11d48');
+    const [chapterReleaseDate, setChapterReleaseDate] = useState('');
 
     const [mangaChapters, setMangaChapters] = useState<Chapter[]>([]);
     const [isLoadingChapters, setIsLoadingChapters] = useState(false);
@@ -195,6 +200,15 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [coinAmount, setCoinAmount] = useState<number>(0);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [showChaptersForUserId, setShowChaptersForUserId] = useState<string | null>(null);
+    const [resFilterWidth, setResFilterWidth] = useState('');
+    const [resFilterHeight, setResFilterHeight] = useState('');
+    const [isCleaningRes, setIsCleaningRes] = useState(false);
+    const [cleanupMangaId, setCleanupMangaId] = useState('');
+    const [foundImages, setFoundImages] = useState<{ chapterId: string, chapterNumber: number, imageUrl: string, index: number }[]>([]);
+    const [isSearchingCleanup, setIsSearchingCleanup] = useState(false);
+    const [isCleanupMangaDropdownOpen, setIsCleanupMangaDropdownOpen] = useState(false);
+    const [cleanupMangaDropdownSearch, setCleanupMangaDropdownSearch] = useState('');
+    const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
 
     // Transactions State
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -369,6 +383,204 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
         }
     };
 
+    const cleanupByResolution = async () => {
+        if (!resFilterWidth || !resFilterHeight) {
+            showToast('Please enter both width and height', 'error');
+            return;
+        }
+
+        setIsCleaningRes(true);
+        const w = parseInt(resFilterWidth);
+        const h = parseInt(resFilterHeight);
+        let removedCount = 0;
+
+        const updatedPages = [...chapterPages];
+        const indicesToRemove: number[] = [];
+
+        showToast('Scanning images...', 'info');
+
+        for (let i = 0; i < updatedPages.length; i++) {
+            const page = updatedPages[i];
+            const url = page.type === 'file' ? page.previewUrl : (page.content as string);
+            
+            if (!url) continue;
+
+            try {
+                const dimensions = await new Promise<{w: number, h: number}>((resolve, reject) => {
+                    const img = new window.Image();
+                    img.onload = () => resolve({ w: img.width, h: img.height });
+                    img.onerror = reject;
+                    img.src = url;
+                });
+
+                if (dimensions.w === w && dimensions.h === h) {
+                    indicesToRemove.push(i);
+                }
+            } catch (e) {
+                console.error("Failed to load image for resolution check", url);
+            }
+        }
+
+        if (indicesToRemove.length > 0) {
+            // Remove from end to start to maintain correct indices
+            for (let i = indicesToRemove.length - 1; i >= 0; i--) {
+                updatedPages.splice(indicesToRemove[i], 1);
+                removedCount++;
+            }
+            setChapterPages(updatedPages);
+            showToast(`Removed ${removedCount} images matching ${w}x${h}`, 'success');
+        } else {
+            showToast('No images found with that resolution', 'info');
+        }
+        setIsCleaningRes(false);
+    };
+
+    const searchResolutionCleanup = async () => {
+        if (!cleanupMangaId) {
+            showToast('Please select a manga first', 'error');
+            return;
+        }
+        if (!resFilterWidth || !resFilterHeight) {
+            showToast('Please enter both width and height', 'error');
+            return;
+        }
+
+        setIsSearchingCleanup(true);
+        setFoundImages([]);
+        setScanProgress({ current: 0, total: 0 });
+        const w = parseInt(resFilterWidth);
+        const h = parseInt(resFilterHeight);
+
+        try {
+            const chapters = await api.getChapters(cleanupMangaId);
+            if (!chapters || chapters.length === 0) {
+                showToast('No chapters found for this manga', 'info');
+                setIsSearchingCleanup(false);
+                return;
+            }
+
+            setScanProgress({ current: 0, total: chapters.length });
+            showToast(`Starting scan for ${chapters.length} chapters...`, 'info');
+            const found: typeof foundImages = [];
+
+            // We process chapters sequentially to avoid overloading the browser
+            for (let chIdx = 0; chIdx < chapters.length; chIdx++) {
+                const ch = chapters[chIdx];
+                setScanProgress(prev => ({ ...prev, current: chIdx + 1 }));
+
+                const pages = typeof ch.pages === 'string' ? JSON.parse(ch.pages) : ch.pages;
+                if (!Array.isArray(pages)) continue;
+
+                // Process pages in small batches to maintain UI responsiveness
+                for (let i = 0; i < pages.length; i++) {
+                    const url = getImageUrl(pages[i]);
+                    try {
+                        const dims = await new Promise<{w: number, h: number}>((resolve, reject) => {
+                            const img = new window.Image();
+                            const timeout = setTimeout(() => {
+                                img.src = ""; // Stop loading
+                                reject(new Error("Timeout"));
+                            }, 5000); // 5s timeout per image
+
+                            img.onload = () => {
+                                clearTimeout(timeout);
+                                resolve({ w: img.width, h: img.height });
+                            };
+                            img.onerror = () => {
+                                clearTimeout(timeout);
+                                reject(new Error("Load fail"));
+                            };
+                            img.src = url;
+                        });
+
+                        if (dims.w === w && dims.h === h) {
+                            found.push({
+                                chapterId: ch.id,
+                                chapterNumber: ch.number,
+                                imageUrl: pages[i],
+                                index: i
+                            });
+                        }
+                    } catch (e) {
+                        // Skip broken images
+                        console.warn(`Skipping image ${url} due to load error`);
+                    }
+                }
+            }
+
+            setFoundImages(found);
+            showToast(`Found ${found.length} matching images`, 'success');
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to scan chapters', 'error');
+        } finally {
+            setIsSearchingCleanup(false);
+        }
+    };
+
+    const deleteFoundImage = async (img: { chapterId: string, imageUrl: string }) => {
+        if (!confirm('Are you sure you want to remove this image from its chapter?')) return;
+
+        try {
+            // This requires a custom API call or a sequence of get/update chapter
+            const chRes = await fetch(`/api/chapter/${img.chapterId}`);
+            const ch = await chRes.json();
+            
+            const pages = Array.isArray(ch.pages) ? ch.pages : JSON.parse(ch.pages);
+            const updatedPages = pages.filter((p: string) => p !== img.imageUrl);
+            
+            await api.updateChapter(img.chapterId, { pages: updatedPages });
+            
+            // Delete from S3/Wasabi if it's a local file
+            if (img.imageUrl.startsWith('/')) {
+                api.deleteFile(img.imageUrl).catch(console.error);
+            }
+
+            setFoundImages(prev => prev.filter(p => p.imageUrl !== img.imageUrl));
+            showToast('Image removed successfully', 'success');
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to remove image', 'error');
+        }
+    };
+
+    const deleteAllFoundImages = async () => {
+        if (!confirm(`Are you sure you want to delete ALL ${foundImages.length} found images? This cannot be undone.`)) return;
+
+        showToast('Deleting images...', 'info');
+        let successCount = 0;
+
+        // Group by chapter to minimize update calls
+        const byChapter: { [id: string]: string[] } = {};
+        foundImages.forEach(img => {
+            if (!byChapter[img.chapterId]) byChapter[img.chapterId] = [];
+            byChapter[img.chapterId].push(img.imageUrl);
+        });
+
+        for (const [chId, urls] of Object.entries(byChapter)) {
+            try {
+                const chRes = await fetch(`/api/chapter/${chId}`);
+                const ch = await chRes.json();
+                const pages = Array.isArray(ch.pages) ? ch.pages : JSON.parse(ch.pages);
+                const updatedPages = pages.filter((p: string) => !urls.includes(p));
+                
+                await api.updateChapter(chId, { pages: updatedPages });
+                
+                // Cleanup files
+                urls.forEach(url => {
+                    if (url.startsWith('/')) api.deleteFile(url).catch(console.error);
+                });
+                
+                successCount += urls.length;
+            } catch (e) {
+                console.error(`Failed to update chapter ${chId}`, e);
+            }
+        }
+
+        setFoundImages([]);
+        showToast(`Successfully deleted ${successCount} images`, 'success');
+    };
+
     const handleMangaSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -400,7 +612,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                 cover: coverUrl,
                 backgroundImage: bgUrl,
                 genres: mangaForm.genres,
-                releaseYear: mangaForm.releaseYear || '2025'
+                releaseYear: mangaForm.releaseYear || '2025',
+                views: Number(mangaForm.views),
+                updatedAt: mangaForm.updatedAt ? new Date(mangaForm.updatedAt).toISOString() : undefined
             };
 
             if (isEditingManga && selectedManga) {
@@ -432,7 +646,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             }
 
             // Reset
-            setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024' });
+            setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' });
             setCoverFile(null);
             setBgFile(null);
             const coverInput = document.getElementById('cover-file') as HTMLInputElement;
@@ -459,7 +673,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             type: manga.type as any,
             genres: manga.genres,
             discordRoleId: manga.discordRoleId || '',
-            releaseYear: manga.releaseYear || '2024'
+            releaseYear: manga.releaseYear || '2024',
+            views: manga.views,
+            updatedAt: manga.updatedAt ? new Date(manga.updatedAt).toISOString().slice(0, 16) : ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -566,6 +782,8 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                     pages: finalPages,
                     price: Number(chapterPrice),
                     freeDate: chapterFreeDate ? new Date(chapterFreeDate).toISOString() : undefined,
+                    sourceName: chapterSourceName,
+                    sourceColor: chapterSourceColor,
                     mangaId: manga.id
                 };
 
@@ -742,14 +960,17 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
             if (finalPages.length === 0) throw new Error("No valid pages found");
 
-            const payload = {
-                title: chapterTitle || `Chapter ${chapterNumber}`,
-                number: Number(chapterNumber),
-                pages: finalPages,
-                price: Number(chapterPrice),
-                freeDate: chapterFreeDate ? new Date(chapterFreeDate).toISOString() : undefined,
-                mangaId: chapterMangaId
-            };
+                const payload = {
+                    title: chapterTitle || `Chapter ${chapterNumber}`,
+                    number: Number(chapterNumber),
+                    pages: finalPages,
+                    price: Number(chapterPrice),
+                    freeDate: chapterFreeDate ? new Date(chapterFreeDate).toISOString() : undefined,
+                    sourceName: chapterSourceName,
+                    sourceColor: chapterSourceColor,
+                    releaseDate: chapterReleaseDate ? new Date(chapterReleaseDate).toISOString() : undefined,
+                    mangaId: chapterMangaId
+                };
 
             if (isEditingChapter && selectedChapter) {
                 const updated = await api.updateChapter(selectedChapter.id, payload);
@@ -774,6 +995,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             setChapterURLs('');
             setChapterPrice('0');
             setChapterFreeDate('');
+            setChapterSourceName('');
+            setChapterSourceColor('#e11d48');
+            setChapterReleaseDate('');
             if (chapterUploadMethod === 'file') {
                 const fileInput = document.getElementById('chapter-files') as HTMLInputElement;
                 if (fileInput) fileInput.value = '';
@@ -798,6 +1022,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
         setChapterTitle(chapter.title);
         setChapterNumber(chapter.number.toString());
         setChapterPrice(chapter.price.toString());
+        setChapterSourceName(chapter.sourceName || '');
+        setChapterSourceColor(chapter.sourceColor || '#e11d48');
+        setChapterReleaseDate(chapter.releaseDate ? new Date(chapter.releaseDate).toISOString().slice(0, 16) : '');
 
         // Correctly format the UTC date to local time for the datetime-local input
         if (chapter.freeDate) {
@@ -1200,7 +1427,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             </div>
 
             <div className="flex gap-2 mb-8 bg-surface p-1 rounded-xl border border-white/5 w-fit overflow-x-auto max-w-full">
-                {(['manga', 'chapters', 'scraper', currentUser?.role === 'admin' ? 'slider' : null, currentUser?.role === 'admin' ? 'users' : null, currentUser?.role === 'admin' ? 'promo' : null, currentUser?.role === 'admin' ? 'transactions' : null, currentUser?.role === 'admin' ? 'analytics' : null].filter(Boolean) as ('manga' | 'chapters' | 'scraper' | 'slider' | 'users' | 'promo' | 'transactions' | 'analytics')[]).map(tab => (
+                {(['manga', 'chapters', 'scraper', currentUser?.role === 'admin' ? 'slider' : null, currentUser?.role === 'admin' ? 'users' : null, currentUser?.role === 'admin' ? 'promo' : null, currentUser?.role === 'admin' ? 'transactions' : null, currentUser?.role === 'admin' ? 'analytics' : null, currentUser?.role === 'admin' ? 'cleanup' : null].filter(Boolean) as ('manga' | 'chapters' | 'scraper' | 'slider' | 'users' | 'promo' | 'transactions' | 'analytics' | 'cleanup')[]).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -1209,7 +1436,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                             : 'text-zinc-400 hover:text-white hover:bg-white/5'
                             }`}
                     >
-                        {tab === 'scraper' ? 'Auto Scraper' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        {tab === 'scraper' ? 'Auto Scraper' : tab === 'cleanup' ? 'Resolution Cleanup' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
                 ))}
             </div>
@@ -1292,6 +1519,167 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                         )}
                     </div>
                 )}
+
+                {/* RESOLUTION CLEANUP TAB */}
+                {activeTab === 'cleanup' && currentUser?.role === 'admin' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Control Panel */}
+                            <Card className="p-8 bg-black/40 border-primary/10 lg:col-span-1">
+                                <div className="flex items-center gap-3 mb-8">
+                                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                        <Search className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Image Scanner</h2>
+                                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Find images by resolution</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-2.5 ml-1">Target Manga</label>
+                                        <div className="relative">
+                                            <div
+                                                onClick={() => setIsCleanupMangaDropdownOpen(!isCleanupMangaDropdownOpen)}
+                                                className="w-full px-4 py-3 rounded-xl bg-zinc-900/50 border border-zinc-800 text-white cursor-pointer flex justify-between items-center text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                            >
+                                                <span className={cleanupMangaId ? "text-white" : "text-zinc-500"}>
+                                                    {cleanupMangaId ? mangas.find(m => m.id === cleanupMangaId)?.title : 'Select Manga to Scan'}
+                                                </span>
+                                                <ChevronDown className="w-4 h-4 text-zinc-500" />
+                                            </div>
+                                            {isCleanupMangaDropdownOpen && (
+                                                <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-[300px] flex flex-col overflow-hidden backdrop-blur-xl">
+                                                    <div className="p-3 border-b border-zinc-800">
+                                                        <input
+                                                            type="text"
+                                                            className="w-full bg-black/40 border border-zinc-800 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-primary"
+                                                            placeholder="Search manga..."
+                                                            value={cleanupMangaDropdownSearch}
+                                                            onChange={e => setCleanupMangaDropdownSearch(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="overflow-y-auto p-2 custom-scrollbar">
+                                                        {mangas.filter(m => m.title.toLowerCase().includes(cleanupMangaDropdownSearch.toLowerCase())).map(m => (
+                                                            <div
+                                                                key={m.id}
+                                                                className={`px-3 py-2.5 text-xs cursor-pointer rounded-lg transition-colors ${cleanupMangaId === m.id ? 'bg-primary/20 text-primary font-bold' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                                                                onClick={() => {
+                                                                    setCleanupMangaId(m.id);
+                                                                    setIsCleanupMangaDropdownOpen(false);
+                                                                }}
+                                                            >
+                                                                {m.title}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">Width (px)</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
+                                                value={resFilterWidth}
+                                                onChange={e => setResFilterWidth(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">Height (px)</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
+                                                value={resFilterHeight}
+                                                onChange={e => setResFilterHeight(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={searchResolutionCleanup}
+                                        disabled={isSearchingCleanup || !cleanupMangaId}
+                                        className="w-full py-4 bg-primary text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1"
+                                    >
+                                        {isSearchingCleanup ? (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    Scanning {scanProgress.current}/{scanProgress.total} <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                </div>
+                                                <div className="w-full max-w-[200px] h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-white transition-all duration-300" 
+                                                        style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>Start Scanning <Search className="w-4 h-4" /></>
+                                        )}
+                                    </button>
+                                </div>
+                            </Card>
+
+                            {/* Results Grid */}
+                            <Card className="p-8 bg-black/40 border-zinc-800 lg:col-span-2 min-h-[600px] flex flex-col">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Scan Results</h2>
+                                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{foundImages.length} images matching criteria</p>
+                                    </div>
+                                    {foundImages.length > 0 && (
+                                        <button
+                                            onClick={deleteAllFoundImages}
+                                            className="px-6 py-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-red-500/20 transition-all"
+                                        >
+                                            Delete All Matches
+                                        </button>
+                                    )}
+                                </div>
+
+                                {isSearchingCleanup ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center space-y-4 opacity-50">
+                                        <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                        <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest animate-pulse">Deep scanning images...</p>
+                                    </div>
+                                ) : foundImages.length > 0 ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6 overflow-y-auto pr-2 custom-scrollbar max-h-[700px]">
+                                        {foundImages.map((img, idx) => (
+                                            <div key={idx} className="relative group aspect-[3/4] rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl transition-all hover:border-primary/50">
+                                                <img src={getImageUrl(img.imageUrl)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all p-3 flex flex-col justify-end">
+                                                    <p className="text-[10px] font-black text-primary uppercase mb-1">Chapter {img.chapterNumber}</p>
+                                                    <p className="text-[8px] text-zinc-400 truncate mb-3">Page Index: {img.index + 1}</p>
+                                                    <button
+                                                        onClick={() => deleteFoundImage(img)}
+                                                        className="w-full py-2 bg-red-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                                <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-[9px] font-black text-white">
+                                                    #{idx + 1}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center opacity-30">
+                                        <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mb-6 border border-white/5">
+                                            <Image className="w-10 h-10 text-zinc-600" />
+                                        </div>
+                                        <p className="text-sm font-black text-zinc-500 uppercase tracking-widest">No images found</p>
+                                        <p className="text-[10px] text-zinc-600 mt-2 font-bold uppercase tracking-widest">Select a manga and resolution to scan</p>
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+                    </div>
+                )}
                 {/* MANGA MANAGEMENT TAB */}
                 {activeTab === 'manga' && (
                     <div className="flex flex-col gap-8 animate-in slide-in-from-bottom-4 duration-700">
@@ -1311,176 +1699,227 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                     <p className="text-zinc-500 text-sm italic">Only administrators can add or edit manga.</p>
                                 </div>
                             ) : (
-                                <form onSubmit={handleMangaSubmit} className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Title</label>
-                                            <Input value={mangaForm.title} onChange={e => setMangaForm({ ...mangaForm, title: e.target.value })} required className="bg-zinc-900/30 border-zinc-800/50" />
+                                <form onSubmit={handleMangaSubmit} className="space-y-8">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        {/* Left Column: Media & Primary Info */}
+                                        <div className="lg:col-span-1 space-y-6">
+                                            <div>
+                                                <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Cover Image</label>
+                                                <div className="space-y-3">
+                                                    <div className="group/upload relative aspect-[3/4] border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-900/30 rounded-2xl overflow-hidden transition-all duration-300">
+                                                        {coverFile || mangaForm.cover ? (
+                                                            <div className="absolute inset-0">
+                                                                <img 
+                                                                    src={coverFile ? URL.createObjectURL(coverFile) : getImageUrl(mangaForm.cover)} 
+                                                                    className="w-full h-full object-cover" 
+                                                                    alt="Cover" 
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <p className="text-white text-xs font-bold">Change Image</p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                                                                <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                                                    <Image className="w-6 h-6" />
+                                                                </div>
+                                                                <p className="text-[10px] text-zinc-500 font-bold uppercase">Click to upload</p>
+                                                            </div>
+                                                        )}
+                                                        <input
+                                                            type="file"
+                                                            id="cover-file"
+                                                            accept="image/*"
+                                                            onChange={e => setCoverFile(e.target.files?.[0] || null)}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                        />
+                                                    </div>
+                                                    <Input
+                                                        placeholder="Or Paste Image URL"
+                                                        value={mangaForm.cover}
+                                                        onChange={e => setMangaForm({ ...mangaForm, cover: e.target.value })}
+                                                        className="bg-zinc-900/30 border-zinc-800/50 text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Background <span className="opacity-50">(Banner)</span></label>
+                                                <div className="space-y-3">
+                                                    <div className="group/upload relative aspect-video border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-900/30 rounded-2xl overflow-hidden transition-all duration-300">
+                                                        {bgFile || mangaForm.backgroundImage ? (
+                                                            <div className="absolute inset-0">
+                                                                <img 
+                                                                    src={bgFile ? URL.createObjectURL(bgFile) : getImageUrl(mangaForm.backgroundImage)} 
+                                                                    className="w-full h-full object-cover" 
+                                                                    alt="Background" 
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <p className="text-white text-xs font-bold">Change Image</p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                                                                <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                                                    <Image className="w-5 h-5" />
+                                                                </div>
+                                                                <p className="text-[9px] text-zinc-500 font-bold uppercase">Wide Banner Image</p>
+                                                            </div>
+                                                        )}
+                                                        <input
+                                                            type="file"
+                                                            id="bg-file"
+                                                            accept="image/*"
+                                                            onChange={e => setBgFile(e.target.files?.[0] || null)}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                        />
+                                                    </div>
+                                                    <Input
+                                                        placeholder="Or Paste Banner URL"
+                                                        value={mangaForm.backgroundImage}
+                                                        onChange={e => setMangaForm({ ...mangaForm, backgroundImage: e.target.value })}
+                                                        className="bg-zinc-900/30 border-zinc-800/50 text-xs"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Cover Image</label>
-                                            <div className="space-y-4">
-                                                <div className="group/upload relative border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-900/30 rounded-xl p-4 transition-all duration-300">
-                                                    <input
-                                                        type="file"
-                                                        id="cover-file"
-                                                        accept="image/*"
-                                                        onChange={e => setCoverFile(e.target.files?.[0] || null)}
-                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                        {/* Right Columns: All Other Info */}
+                                        <div className="lg:col-span-2 space-y-8">
+                                            {/* Basic Info Row */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Title</label>
+                                                    <Input value={mangaForm.title} onChange={e => setMangaForm({ ...mangaForm, title: e.target.value })} required className="bg-zinc-900/30 border-zinc-800/50 text-base py-6" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Description</label>
+                                                    <textarea
+                                                        className="w-full px-4 py-4 rounded-2xl bg-zinc-900/30 border border-zinc-800/50 text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 focus:bg-zinc-900/50 transition-all min-h-[120px] text-sm resize-none custom-scrollbar"
+                                                        value={mangaForm.description}
+                                                        onChange={e => setMangaForm({ ...mangaForm, description: e.target.value })}
+                                                        placeholder="Write a compelling story summary..."
+                                                        required
                                                     />
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center group-hover/upload:bg-primary/10 transition-colors">
-                                                            <Image className="w-5 h-5 text-zinc-500 group-hover/upload:text-primary transition-colors" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-bold text-zinc-300 truncate max-w-[120px]">{coverFile ? coverFile.name : 'Choose File'}</p>
-                                                            <p className="text-[9px] text-zinc-500 uppercase tracking-tighter">PNG, JPG or WebP</p>
-                                                        </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Author / Artist</label>
+                                                    <Input value={mangaForm.author} onChange={e => setMangaForm({ ...mangaForm, author: e.target.value })} required className="bg-zinc-900/30 border-zinc-800/50" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Release Year</label>
+                                                    <Input value={mangaForm.releaseYear} onChange={e => setMangaForm({ ...mangaForm, releaseYear: e.target.value })} className="bg-zinc-900/30 border-zinc-800/50" />
+                                                </div>
+                                            </div>
+
+                                            {/* Status & Type Row */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-zinc-900/20 rounded-2xl border border-white/5">
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Series Status</label>
+                                                    <div className="flex gap-2">
+                                                        {['Ongoing', 'Completed', 'Hiatus'].map(status => (
+                                                            <button
+                                                                key={status}
+                                                                type="button"
+                                                                onClick={() => setMangaForm({ ...mangaForm, status: status as any })}
+                                                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all border ${mangaForm.status === status 
+                                                                    ? 'bg-primary/20 border-primary/50 text-primary' 
+                                                                    : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
+                                                            >
+                                                                {status}
+                                                            </button>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                                <Input
-                                                    placeholder="Or Paste URL"
-                                                    value={mangaForm.cover}
-                                                    onChange={e => setMangaForm({ ...mangaForm, cover: e.target.value })}
-                                                    className="bg-zinc-900/30 border-zinc-800/50 text-xs"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Background <span className="opacity-50">(Optional)</span></label>
-                                            <div className="space-y-4">
-                                                <div className="group/upload relative border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-900/30 rounded-xl p-4 transition-all duration-300">
-                                                    <input
-                                                        type="file"
-                                                        id="bg-file"
-                                                        accept="image/*"
-                                                        onChange={e => setBgFile(e.target.files?.[0] || null)}
-                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                    />
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center group-hover/upload:bg-primary/10 transition-colors">
-                                                            <Image className="w-5 h-5 text-zinc-500 group-hover/upload:text-primary transition-colors" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-bold text-zinc-300 truncate max-w-[120px]">{bgFile ? bgFile.name : 'Choose File'}</p>
-                                                            <p className="text-[9px] text-zinc-500 uppercase tracking-tighter">High Res Image</p>
-                                                        </div>
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Content Type</label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {['Manhwa', 'Manga', 'Manhua'].map(type => (
+                                                            <button
+                                                                key={type}
+                                                                type="button"
+                                                                onClick={() => setMangaForm({ ...mangaForm, type: type as any })}
+                                                                className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${mangaForm.type === type 
+                                                                    ? 'bg-primary/20 border-primary/50 text-primary' 
+                                                                    : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
+                                                            >
+                                                                {type}
+                                                            </button>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                                <Input
-                                                    placeholder="Or Paste URL"
-                                                    value={mangaForm.backgroundImage}
-                                                    onChange={e => setMangaForm({ ...mangaForm, backgroundImage: e.target.value })}
-                                                    className="bg-zinc-900/30 border-zinc-800/50 text-xs"
-                                                />
                                             </div>
-                                        </div>
 
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Description</label>
-                                            <textarea
-                                                className="w-full px-4 py-3 rounded-xl bg-zinc-900/30 border border-zinc-800/50 text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 focus:bg-zinc-900/50 transition-all min-h-[100px] text-sm resize-none custom-scrollbar"
-                                                value={mangaForm.description}
-                                                onChange={e => setMangaForm({ ...mangaForm, description: e.target.value })}
-                                                placeholder="Write a compelling description..."
-                                                required
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Author</label>
-                                            <Input value={mangaForm.author} onChange={e => setMangaForm({ ...mangaForm, author: e.target.value })} required className="bg-zinc-900/30 border-zinc-800/50" />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Status</label>
-                                            <div className="relative">
-                                                <select
-                                                    className="w-full px-4 py-2.5 rounded-lg bg-zinc-900/30 border border-zinc-800/50 text-white focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all text-sm appearance-none cursor-pointer"
-                                                    value={mangaForm.status}
-                                                    onChange={e => setMangaForm({ ...mangaForm, status: e.target.value as any })}
-                                                >
-                                                    <option value="Ongoing">Ongoing</option>
-                                                    <option value="Completed">Completed</option>
-                                                    <option value="Hiatus">Hiatus</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                                            {/* Stats & Integrations Row */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Initial Views</label>
+                                                    <Input type="number" value={mangaForm.views} onChange={e => setMangaForm({ ...mangaForm, views: parseInt(e.target.value) || 0 })} className="bg-zinc-900/30 border-zinc-800/50" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Custom Updated Date</label>
+                                                    <Input type="datetime-local" value={mangaForm.updatedAt} onChange={e => setMangaForm({ ...mangaForm, updatedAt: e.target.value })} className="bg-zinc-900/30 border-zinc-800/50" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Discord Role ID</label>
+                                                    <Input placeholder="123456789..." value={mangaForm.discordRoleId} onChange={e => setMangaForm({ ...mangaForm, discordRoleId: e.target.value })} className="bg-zinc-900/30 border-zinc-800/50" />
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div>
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Content Type</label>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {['Manhwa', 'Manga', 'Manhua'].map(type => (
-                                                    <button
-                                                        key={type}
-                                                        type="button"
-                                                        onClick={() => setMangaForm({ ...mangaForm, type: type as any })}
-                                                        className={`py-2 rounded-lg text-[10px] font-black transition-all border ${mangaForm.type === type 
-                                                            ? 'bg-primary/20 border-primary/50 text-primary' 
-                                                            : 'bg-zinc-900/30 border-zinc-800/50 text-zinc-500'}`}
-                                                    >
-                                                        {type}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1.5">
-                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Discord ID</label>
-                                                <Input value={mangaForm.discordRoleId} onChange={e => setMangaForm({ ...mangaForm, discordRoleId: e.target.value })} className="bg-zinc-900/30 border-zinc-800/50 text-xs" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Year</label>
-                                                <Input value={mangaForm.releaseYear} onChange={e => setMangaForm({ ...mangaForm, releaseYear: e.target.value })} className="bg-zinc-900/30 border-zinc-800/50 text-xs" />
-                                            </div>
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Genres</label>
-                                            <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-2 bg-black/20 rounded-xl border border-white/5 custom-scrollbar">
-                                                {COMMON_GENRES.map(g => (
-                                                    <button
-                                                        key={g}
-                                                        type="button"
-                                                        onClick={() => handleGenreToggle(g)}
-                                                        className={`px-2.5 py-1 rounded-lg text-[9px] font-black border transition-all duration-300 ${mangaForm.genres.includes(g)
-                                                            ? 'bg-primary text-white border-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]'
-                                                            : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:border-zinc-600'
-                                                            }`}
-                                                    >
-                                                        {g}
-                                                    </button>
-                                                ))}
-                                                {/* Render custom genres that are not in COMMON_GENRES */}
-                                                {mangaForm.genres.filter(g => !COMMON_GENRES.includes(g)).map(g => (
-                                                    <button
-                                                        key={g}
-                                                        type="button"
-                                                        onClick={() => handleGenreToggle(g)}
-                                                        className="px-2.5 py-1 rounded-lg text-[9px] font-black border transition-all duration-300 bg-primary text-white border-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]"
-                                                    >
-                                                        {g}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <div className="flex gap-2 mt-3">
-                                                <input
-                                                    placeholder="Custom genre..."
-                                                    value={customGenre}
-                                                    onChange={e => setCustomGenre(e.target.value)}
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter') {
-                                                            e.preventDefault();
-                                                            addCustomGenre();
-                                                        }
-                                                    }}
-                                                    className="flex-1 px-4 py-2 rounded-lg bg-zinc-900/30 border border-zinc-800 text-xs focus:outline-none focus:border-primary/50 transition-all"
-                                                />
-                                                <button type="button" onClick={addCustomGenre} className="px-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all"><Plus className="w-4 h-4" /></button>
+                                            {/* Genres Section */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-4 ml-1">
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest">Genres Selection</label>
+                                                    <span className="text-[10px] font-bold text-primary">{mangaForm.genres.length} Selected</span>
+                                                </div>
+                                                <div className="p-4 bg-zinc-950/40 rounded-2xl border border-white/5">
+                                                    <div className="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                                                        {COMMON_GENRES.map(g => (
+                                                            <button
+                                                                key={g}
+                                                                type="button"
+                                                                onClick={() => handleGenreToggle(g)}
+                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black border transition-all duration-300 ${mangaForm.genres.includes(g)
+                                                                    ? 'bg-primary text-white border-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)] scale-105'
+                                                                    : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
+                                                                    }`}
+                                                            >
+                                                                {g}
+                                                            </button>
+                                                        ))}
+                                                        {mangaForm.genres.filter(g => !COMMON_GENRES.includes(g)).map(g => (
+                                                            <button
+                                                                key={g}
+                                                                type="button"
+                                                                onClick={() => handleGenreToggle(g)}
+                                                                className="px-3 py-1.5 rounded-xl text-[10px] font-black border bg-primary text-white border-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)] scale-105"
+                                                            >
+                                                                {g}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="flex gap-2 mt-4 pt-4 border-t border-white/5">
+                                                        <input
+                                                            placeholder="Add custom genre..."
+                                                            value={customGenre}
+                                                            onChange={e => setCustomGenre(e.target.value)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    addCustomGenre();
+                                                                }
+                                                            }}
+                                                            className="flex-1 bg-transparent border-0 text-sm focus:outline-none focus:ring-0 text-white placeholder:text-zinc-600"
+                                                        />
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={addCustomGenre} 
+                                                            className="p-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all"
+                                                        >
+                                                            <Plus className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1489,7 +1928,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         {isEditingManga && (
                                             <button 
                                                 type="button" 
-                                                onClick={() => { setIsEditingManga(false); setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024' }); setCoverFile(null); setBgFile(null); }} 
+                                                onClick={() => { setIsEditingManga(false); setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' }); setCoverFile(null); setBgFile(null); }} 
                                                 className="flex-1 py-3.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-black text-sm hover:bg-zinc-800 transition-all uppercase tracking-widest"
                                             >
                                                 Cancel
@@ -1715,7 +2154,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-1 gap-3">
                                                 <div className="space-y-1">
                                                     <Input
                                                         label={isScraperBulkMode ? "Starting Chapter #" : "Chapter #"}
@@ -1728,7 +2167,6 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     />
                                                     {isScraperBulkMode && <p className="text-[9px] text-primary/70 font-bold italic">* Numbers will increment automatically</p>}
                                                 </div>
-                                                <Input label="Title Prefix" placeholder={isScraperBulkMode ? "Chapter" : "The Beginning"} value={scraperChapterTitle} onChange={e => setScraperChapterTitle(e.target.value)} />
                                             </div>
 
                                             <div className="border-t border-zinc-800/50 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2103,9 +2541,31 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                 <Input label="Chapter Title (Optional)" placeholder="e.g. The Beginning" value={chapterTitle} onChange={e => setChapterTitle(e.target.value)} className="bg-zinc-900/50 border-zinc-800" />
                                             </div>
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                 <Input label="Price (Coins)" type="number" value={chapterPrice} onChange={e => setChapterPrice(e.target.value)} className="bg-zinc-900/50 border-zinc-800" />
                                                 <Input label="Free Date (Optional)" type="datetime-local" value={chapterFreeDate} onChange={e => setChapterFreeDate(e.target.value)} className="bg-zinc-900/50 border-zinc-800" />
+                                                <Input label="Release Date (Published At)" type="datetime-local" value={chapterReleaseDate} onChange={e => setChapterReleaseDate(e.target.value)} className="bg-zinc-900/50 border-zinc-800" />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <Input label="Source Name" placeholder="e.g. Asura Scans" value={chapterSourceName} onChange={e => setChapterSourceName(e.target.value)} className="bg-zinc-900/50 border-zinc-800" />
+                                                <div className="space-y-1">
+                                                    <label className="block text-sm font-medium text-zinc-400 mb-1">Source Color</label>
+                                                    <div className="flex gap-2 items-center">
+                                                        <input 
+                                                            type="color" 
+                                                            value={chapterSourceColor} 
+                                                            onChange={e => setChapterSourceColor(e.target.value)} 
+                                                            className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer"
+                                                        />
+                                                        <Input 
+                                                            placeholder="#e11d48" 
+                                                            value={chapterSourceColor} 
+                                                            onChange={e => setChapterSourceColor(e.target.value)} 
+                                                            className="flex-1 bg-zinc-900/50 border-zinc-800"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div>
@@ -2155,68 +2615,81 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
                                                         {/* Unified Pages Preview Grid */}
                                                         {chapterPages.length > 0 && (
-                                                            <div className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-4 animate-in fade-in slide-in-from-top-4 duration-500 mt-4">
-                                                                <div className="flex items-center justify-between mb-4 px-1">
-                                                                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                                                                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                                                        {chapterPages.length} Pages Organized
-                                                                    </h4>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setChapterPages([])}
-                                                                        className="text-xs text-red-400 hover:text-red-300 transition-colors font-bold uppercase tracking-widest"
-                                                                    >
-                                                                        Clear All
-                                                                    </button>
+                                                            <div className="bg-zinc-950/40 rounded-2xl border border-white/5 p-6 animate-in fade-in slide-in-from-top-4 duration-700 mt-6 backdrop-blur-xl relative overflow-hidden group">
+                                                                {/* Background glow */}
+                                                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/10 transition-colors" />
+                                                                
+                                                                <div className="flex items-center justify-between mb-6 relative z-10">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                                                            <LayoutDashboard className="w-5 h-5 text-primary" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <h4 className="text-sm font-black text-white uppercase tracking-tight">Sequence Organizer</h4>
+                                                                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{chapterPages.length} Pages Organized</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 relative z-10">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setChapterPages([])}
+                                                                            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-red-500/20 transition-all active:scale-95"
+                                                                        >
+                                                                            Clear All
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+
+                                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5 relative z-10">
                                                                     {chapterPages.map((page, idx) => (
-                                                                        <div key={page.id} className="relative group aspect-[3/4] rounded-lg overflow-hidden border border-white/5 bg-zinc-950 shadow-xl ring-1 ring-white/5">
+                                                                        <div key={page.id} className="relative group aspect-[3/4] rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl transition-all duration-300 hover:border-primary/50 hover:shadow-primary/10">
                                                                             <img
                                                                                 src={page.type === 'file' ? page.previewUrl : page.content as string}
-                                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                                                                 alt=""
                                                                             />
+                                                                            
+                                                                            {/* Page Number Badge (Always Visible) */}
+                                                                            <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 z-20">
+                                                                                <p className="text-[10px] font-black text-white">#{idx + 1}</p>
+                                                                            </div>
 
                                                                             {/* Overlay Controls */}
-                                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                                                                                <div className="flex justify-between items-start">
-                                                                                    <Badge color={page.type === 'file' ? 'bg-primary/20 text-primary border-primary/20' : 'bg-blue-500/20 text-blue-400 border-blue-500/20'} className="text-[8px] px-1.5 py-0.5">
-                                                                                        {page.type === 'file' ? 'NEW' : 'EXISTING'}
-                                                                                    </Badge>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => removePage(idx)}
-                                                                                        className="p-1.5 bg-red-500/80 hover:bg-red-500 rounded-full text-white transition-all shadow-lg"
-                                                                                    >
-                                                                                        <Trash2 className="w-3 h-3" />
-                                                                                    </button>
-                                                                                </div>
-
-                                                                                <div className="flex justify-center gap-2">
+                                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 p-4 flex flex-col justify-end gap-3 translate-y-4 group-hover:translate-y-0">
+                                                                                <div className="flex justify-center gap-1.5">
                                                                                     <button
                                                                                         type="button"
                                                                                         disabled={idx === 0}
                                                                                         onClick={() => movePage(idx, 'up')}
-                                                                                        className="p-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 rounded-lg text-white transition-colors"
+                                                                                        className="w-9 h-9 flex items-center justify-center bg-white/10 hover:bg-primary hover:text-white disabled:opacity-20 rounded-xl text-zinc-300 transition-all active:scale-90"
+                                                                                        title="Move Up"
                                                                                     >
-                                                                                        <ChevronDown className="w-4 h-4 rotate-[270deg]" />
+                                                                                        <ChevronDown className="w-5 h-5 rotate-[180deg]" />
                                                                                     </button>
                                                                                     <button
                                                                                         type="button"
                                                                                         disabled={idx === chapterPages.length - 1}
                                                                                         onClick={() => movePage(idx, 'down')}
-                                                                                        className="p-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 rounded-lg text-white transition-colors"
+                                                                                        className="w-9 h-9 flex items-center justify-center bg-white/10 hover:bg-primary hover:text-white disabled:opacity-20 rounded-xl text-zinc-300 transition-all active:scale-90"
+                                                                                        title="Move Down"
                                                                                     >
-                                                                                        <ChevronDown className="w-4 h-4 rotate-90" />
+                                                                                        <ChevronDown className="w-5 h-5" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => removePage(idx)}
+                                                                                        className="w-9 h-9 flex items-center justify-center bg-red-500/20 hover:bg-red-500 text-white rounded-xl transition-all active:scale-90"
+                                                                                        title="Delete Page"
+                                                                                    >
+                                                                                        <Trash2 className="w-4 h-4" />
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
-
-                                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-md px-2 py-1 text-[10px] text-white flex justify-between items-center border-t border-white/5">
-                                                                                <span className="font-black text-primary">#{idx + 1}</span>
-                                                                                {page.type === 'file' && <span className="truncate opacity-70 ml-1 max-w-[60px]">{(page.content as File).name}</span>}
-                                                                            </div>
+                                                                            {page.type === 'file' && (
+                                                                                <div className="absolute bottom-0 left-0 right-0 bg-black/40 backdrop-blur-sm px-2 py-1 text-[8px] text-white truncate text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    {(page.content as File).name}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -2233,15 +2706,30 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                 )}
                                             </div>
 
-                                            <div className="flex gap-3 pt-6">
+                                            <div className="flex gap-4 pt-8">
                                                 {isEditingChapter && (
-                                                    <Button type="button" variant="secondary" onClick={() => { setIsEditingChapter(false); setSelectedChapter(null); setChapterTitle(''); setChapterNumber(''); setChapterFiles(null); setChapterURLs(''); setChapterPrice('0'); setChapterFreeDate(''); setChapterPages([]); }} className="px-6">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => { setIsEditingChapter(false); setSelectedChapter(null); setChapterTitle(''); setChapterNumber(''); setChapterFiles(null); setChapterURLs(''); setChapterPrice('0'); setChapterFreeDate(''); setChapterPages([]); }} 
+                                                        className="px-8 py-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-black text-xs hover:bg-zinc-800 transition-all uppercase tracking-widest active:scale-95"
+                                                    >
                                                         Cancel
-                                                    </Button>
+                                                    </button>
                                                 )}
-                                                <Button type="submit" className="flex-1 bg-primary hover:bg-primaryDark text-black font-bold py-4 rounded-xl shadow-lg shadow-primary/25 disabled:opacity-50 transition-all" disabled={isUploading}>
-                                                    {isUploading ? 'Processing...' : (isEditingChapter ? 'Update Chapter' : 'Publish Chapter')}
-                                                </Button>
+                                                <button 
+                                                    type="submit" 
+                                                    disabled={isUploading}
+                                                    className="flex-1 py-4 rounded-2xl bg-primary text-white font-black text-sm hover:shadow-[0_0_30px_rgba(var(--primary-rgb),0.4)] transition-all uppercase tracking-widest flex items-center justify-center gap-2 group/btn active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isUploading ? (
+                                                        <>Processing <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /></>
+                                                    ) : (
+                                                        <>
+                                                            {isEditingChapter ? 'Update Chapter' : 'Publish Chapter'}
+                                                            <CheckCircle className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                                                        </>
+                                                    )}
+                                                </button>
                                             </div>
                                         </>
                                     ) : (
@@ -2345,6 +2833,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                         </Card>
 
                         <div className="space-y-6 lg:col-span-1">
+
                             <div className="flex items-center justify-between">
                                 <h3 className="font-bold text-xl">Recent Chapters</h3>
                                 <div className="relative w-40">

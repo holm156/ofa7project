@@ -390,8 +390,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {loading ? (
                 <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[50]">
                     <div className="relative mb-6">
-                        <img src="/logo1.png" alt="Loading" className="w-20 h-20 object-contain relative z-10" />
-                        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse"></div>
+                        <img src="/logo1.png" alt="Loading" className="w-32 h-32 object-contain relative z-10 animate-dusk-pulse" />
+                        <div className="absolute inset-0 bg-primary/20 blur-[60px] rounded-full animate-pulse"></div>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-primary font-black text-xl tracking-[0.5em] uppercase animate-pulse">Dusk Scans</p>
+                        <div className="w-24 h-0.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="w-full h-full bg-primary animate-[loading_2s_ease-in-out_infinite]"></div>
+                        </div>
                     </div>
                 </div>
             ) : (

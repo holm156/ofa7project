@@ -43,6 +43,8 @@ export async function POST(req: Request) {
         isFeatured: body.isFeatured || false,
         releaseYear: body.releaseYear || '2025',
         discordRoleId: body.discordRoleId || null,
+        views: body.views || 0,
+        updatedAt: body.updatedAt ? new Date(body.updatedAt) : undefined,
         slug: generateSlug(body.title),
         // @ts-ignore
         userId: session.user.id,

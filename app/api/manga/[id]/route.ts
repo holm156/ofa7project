@@ -31,6 +31,8 @@ export async function PUT(
             isFeatured: body.isFeatured,
             discordRoleId: body.discordRoleId,
             releaseYear: body.releaseYear,
+            views: body.views,
+            updatedAt: body.updatedAt ? new Date(body.updatedAt) : undefined,
             slug: body.slug // Allow manual slug update if needed
         };
 

@@ -68,7 +68,10 @@ export async function POST(req: Request) {
                 number: body.number,
                 pages: typeof body.pages === 'string' ? body.pages : JSON.stringify(body.pages || []),
                 price: body.price,
-                freeDate: body.freeDate ? new Date(body.freeDate) : null
+                freeDate: body.freeDate ? new Date(body.freeDate) : null,
+                sourceName: body.sourceName,
+                sourceColor: body.sourceColor,
+                releaseDate: body.releaseDate ? new Date(body.releaseDate) : undefined
             }
         });
 
