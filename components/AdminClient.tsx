@@ -204,12 +204,15 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [resFilterHeight, setResFilterHeight] = useState('');
     const [isCleaningRes, setIsCleaningRes] = useState(false);
     const [cleanupMangaId, setCleanupMangaId] = useState('');
-    const [foundImages, setFoundImages] = useState<{ chapterId: string, chapterNumber: number, imageUrl: string, index: number }[]>([]);
+    const [foundImages, setFoundImages] = useState<{ chapterId: string, chapterNumber: number, mangaTitle: string, imageUrl: string, index: number }[]>([]);
     const [isSearchingCleanup, setIsSearchingCleanup] = useState(false);
     const [isCleanupMangaDropdownOpen, setIsCleanupMangaDropdownOpen] = useState(false);
     const [cleanupMangaDropdownSearch, setCleanupMangaDropdownSearch] = useState('');
     const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
     const [resFilterMode, setResFilterMode] = useState<'exact' | 'lessThan'>('exact');
+    const [targetResolutions, setTargetResolutions] = useState<{ width: string, height: string }[]>([
+        { width: '', height: '' }
+    ]);
 
     // Transactions State
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -441,21 +444,43 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             showToast('Please select a manga first', 'error');
             return;
         }
-        if (!resFilterWidth || !resFilterHeight) {
-            showToast('Please enter both width and height', 'error');
+
+        // Filter and parse valid resolution pairs
+        const validResolutions = targetResolutions
+            .map(res => ({
+                w: parseInt(res.width),
+                h: parseInt(res.height)
+            }))
+            .filter(res => !isNaN(res.w) || !isNaN(res.h));
+
+        if (validResolutions.length === 0) {
+            showToast('Please enter at least one valid Width or Height', 'error');
             return;
         }
 
         setIsSearchingCleanup(true);
         setFoundImages([]);
         setScanProgress({ current: 0, total: 0 });
-        const w = parseInt(resFilterWidth);
-        const h = parseInt(resFilterHeight);
 
         try {
-            const chapters = await api.getChapters(cleanupMangaId);
+            let chapters: any[] = [];
+            if (cleanupMangaId === 'all') {
+                showToast('Fetching all chapters of all mangas...', 'info');
+                const allChaptersPromises = mangas.map(m => 
+                    api.getChapters(m.id)
+                        .then(chList => chList.map(ch => ({ ...ch, mangaTitle: m.title })))
+                        .catch(() => [])
+                );
+                const allChaptersResults = await Promise.all(allChaptersPromises);
+                chapters = allChaptersResults.flat();
+            } else {
+                const fetched = await api.getChapters(cleanupMangaId);
+                const mangaTitle = mangas.find(m => m.id === cleanupMangaId)?.title || '';
+                chapters = fetched.map(ch => ({ ...ch, mangaTitle }));
+            }
+
             if (!chapters || chapters.length === 0) {
-                showToast('No chapters found for this manga', 'info');
+                showToast('No chapters found to scan', 'info');
                 setIsSearchingCleanup(false);
                 return;
             }
@@ -472,40 +497,75 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                 const pages = typeof ch.pages === 'string' ? JSON.parse(ch.pages) : ch.pages;
                 if (!Array.isArray(pages)) continue;
 
+                // Map pages to keep track of their original indices
+                let mappedPages = pages.map((url, idx) => ({ url, idx }));
+
+
+
                 // Process pages in parallel batches of 40 (Optimized for your server specs)
                 const BATCH_SIZE = 40;
-                for (let i = 0; i < pages.length; i += BATCH_SIZE) {
-                    const batch = pages.slice(i, i + BATCH_SIZE);
-                    const results = await Promise.all(batch.map(async (pageUrl, batchIdx) => {
-                        const url = getImageUrl(pageUrl);
+                for (let i = 0; i < mappedPages.length; i += BATCH_SIZE) {
+                    const batch = mappedPages.slice(i, i + BATCH_SIZE);
+                    const results = await Promise.all(batch.map(async (pageObj) => {
+                        const url = getImageUrl(pageObj.url);
                         try {
                             const dims = await new Promise<{ w: number, h: number }>((resolve, reject) => {
                                 const img = new window.Image();
+                                let resolved = false;
+                                
                                 const timeout = setTimeout(() => {
-                                    img.src = "";
-                                    reject(new Error("Timeout"));
+                                    if (!resolved) {
+                                        img.src = "";
+                                        reject(new Error("Timeout"));
+                                    }
                                 }, 8000);
 
+                                // Fast size poller: stops downloading the image as soon as the dimensions are known
+                                const poll = setInterval(() => {
+                                    if (img.width > 0 && img.height > 0) {
+                                        resolved = true;
+                                        clearInterval(poll);
+                                        clearTimeout(timeout);
+                                        const w = img.width;
+                                        const h = img.height;
+                                        img.src = ""; // Cancel remaining download
+                                        resolve({ w, h });
+                                    }
+                                }, 10);
+
                                 img.onload = () => {
-                                    clearTimeout(timeout);
-                                    resolve({ w: img.width, h: img.height });
+                                    if (!resolved) {
+                                        resolved = true;
+                                        clearInterval(poll);
+                                        clearTimeout(timeout);
+                                        resolve({ w: img.width, h: img.height });
+                                    }
                                 };
                                 img.onerror = () => {
-                                    clearTimeout(timeout);
-                                    reject(new Error("Load fail"));
+                                    if (!resolved) {
+                                        resolved = true;
+                                        clearInterval(poll);
+                                        clearTimeout(timeout);
+                                        reject(new Error("Load fail"));
+                                    }
                                 };
                                 img.src = url;
                             });
 
-                            const matchesW = !w || (resFilterMode === 'exact' ? dims.w === w : dims.w <= w);
-                            const matchesH = !h || (resFilterMode === 'exact' ? dims.h === h : dims.h <= h);
+                            // Match if the parsed dims (dims.w, dims.h) match ANY of the validResolutions
+                            const matches = validResolutions.some(target => {
+                                const matchW = isNaN(target.w) || dims.w === target.w;
+                                const matchH = isNaN(target.h) || dims.h === target.h;
+                                return matchW && matchH;
+                            });
 
-                            if (matchesW && matchesH) {
+                            if (matches) {
                                 return {
                                     chapterId: ch.id,
                                     chapterNumber: ch.number,
-                                    imageUrl: pageUrl,
-                                    index: i + batchIdx
+                                    mangaTitle: ch.mangaTitle || '',
+                                    imageUrl: pageObj.url,
+                                    index: pageObj.idx
                                 };
                             }
                         } catch (e) {
@@ -1557,7 +1617,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                 className="w-full px-4 py-3 rounded-xl bg-zinc-900/50 border border-zinc-800 text-white cursor-pointer flex justify-between items-center text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                             >
                                                 <span className={cleanupMangaId ? "text-white" : "text-zinc-500"}>
-                                                    {cleanupMangaId ? mangas.find(m => m.id === cleanupMangaId)?.title : 'Select Manga to Scan'}
+                                                    {cleanupMangaId === 'all' ? '✨ All Manga (Scan Everything)' : cleanupMangaId ? mangas.find(m => m.id === cleanupMangaId)?.title : 'Select Manga to Scan'}
                                                 </span>
                                                 <ChevronDown className="w-4 h-4 text-zinc-500" />
                                             </div>
@@ -1573,10 +1633,19 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                         />
                                                     </div>
                                                     <div className="overflow-y-auto p-2 custom-scrollbar">
+                                                        <div
+                                                            className={`px-3 py-2 text-xs cursor-pointer rounded-lg transition-colors mb-1 ${cleanupMangaId === 'all' ? 'bg-primary/20 text-primary font-bold' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                                                            onClick={() => {
+                                                                setCleanupMangaId('all');
+                                                                setIsCleanupMangaDropdownOpen(false);
+                                                            }}
+                                                        >
+                                                            ✨ All Manga (Scan Everything)
+                                                        </div>
                                                         {mangas.filter(m => m.title.toLowerCase().includes(cleanupMangaDropdownSearch.toLowerCase())).map(m => (
                                                             <div
                                                                 key={m.id}
-                                                                className={`px-3 py-2.5 text-xs cursor-pointer rounded-lg transition-colors ${cleanupMangaId === m.id ? 'bg-primary/20 text-primary font-bold' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                                                                className={`px-3 py-2 text-xs cursor-pointer rounded-lg transition-colors ${cleanupMangaId === m.id ? 'bg-primary/20 text-primary font-bold' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
                                                                 onClick={() => {
                                                                     setCleanupMangaId(m.id);
                                                                     setIsCleanupMangaDropdownOpen(false);
@@ -1591,46 +1660,68 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/5 mb-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setResFilterMode('exact')}
-                                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${resFilterMode === 'exact' ? 'bg-primary text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                        >
-                                            Exact Match
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setResFilterMode('lessThan')}
-                                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${resFilterMode === 'lessThan' ? 'bg-primary text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                        >
-                                            Less Than
-                                        </button>
-                                    </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">Width (px)</label>
-                                            <input
-                                                type="number"
-                                                placeholder={resFilterMode === 'exact' ? "e.g. 720" : "Ignore"}
-                                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
-                                                value={resFilterWidth}
-                                                onChange={e => setResFilterWidth(e.target.value)}
-                                            />
+
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center ml-1">
+                                            <label className="block text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em]">Target Resolutions</label>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">
-                                                {resFilterMode === 'exact' ? 'Height (px)' : 'Max Height'}
-                                            </label>
-                                            <input
-                                                type="number"
-                                                placeholder={resFilterMode === 'exact' ? "e.g. 1280" : "e.g. 500"}
-                                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
-                                                value={resFilterHeight}
-                                                onChange={e => setResFilterHeight(e.target.value)}
-                                            />
+
+                                        <div className="space-y-3">
+                                            {targetResolutions.map((res, index) => (
+                                                <div key={index} className="flex gap-3 items-end">
+                                                    <div className="flex-1 space-y-1.5">
+                                                        {index === 0 && <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Width (px)</label>}
+                                                        <input
+                                                            type="number"
+                                                            placeholder="e.g. 720"
+                                                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-primary transition-all"
+                                                            value={res.width}
+                                                            onChange={e => {
+                                                                const updated = [...targetResolutions];
+                                                                updated[index].width = e.target.value;
+                                                                setTargetResolutions(updated);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1 space-y-1.5">
+                                                        {index === 0 && <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Height (px)</label>}
+                                                        <input
+                                                            type="number"
+                                                            placeholder="e.g. 1280"
+                                                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-primary transition-all"
+                                                            value={res.height}
+                                                            onChange={e => {
+                                                                const updated = [...targetResolutions];
+                                                                updated[index].height = e.target.value;
+                                                                setTargetResolutions(updated);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    {targetResolutions.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setTargetResolutions(targetResolutions.filter((_, idx) => idx !== index));
+                                                            }}
+                                                            className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl border border-red-500/20 transition-all mb-[0.5px]"
+                                                            title="Remove resolution"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setTargetResolutions([...targetResolutions, { width: '', height: '' }])}
+                                            className="w-full py-2.5 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest rounded-xl border border-zinc-800 transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <Plus className="w-3.5 h-3.5 text-primary" />
+                                            Add Another Size
+                                        </button>
                                     </div>
 
                                     <button
@@ -1684,8 +1775,11 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         {foundImages.map((img, idx) => (
                                             <div key={idx} className="relative group aspect-[3/4] rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl transition-all hover:border-primary/50">
                                                 <img src={getImageUrl(img.imageUrl)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all p-3 flex flex-col justify-end">
-                                                    <p className="text-[10px] font-black text-primary uppercase mb-1">Chapter {img.chapterNumber}</p>
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all p-3 flex flex-col justify-end text-left">
+                                                    {img.mangaTitle && (
+                                                        <p className="text-[9px] font-bold text-zinc-300 truncate mb-0.5" title={img.mangaTitle}>{img.mangaTitle}</p>
+                                                    )}
+                                                    <p className="text-[10px] font-black text-primary uppercase mb-0.5">Chapter {img.chapterNumber}</p>
                                                     <p className="text-[8px] text-zinc-400 truncate mb-3">Page Index: {img.index + 1}</p>
                                                     <button
                                                         onClick={() => deleteFoundImage(img)}
