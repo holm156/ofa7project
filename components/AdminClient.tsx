@@ -489,95 +489,109 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             showToast(`Starting scan for ${chapters.length} chapters...`, 'info');
             const found: typeof foundImages = [];
 
-            // We process chapters sequentially, but pages within each chapter in parallel batches
-            for (let chIdx = 0; chIdx < chapters.length; chIdx++) {
-                const ch = chapters[chIdx];
-                setScanProgress(prev => ({ ...prev, current: chIdx + 1 }));
+            // Process chapters in parallel batches of 10 for super speed
+            const CHAPTER_BATCH_SIZE = 10;
+            let processedChaptersCount = 0;
 
-                const pages = typeof ch.pages === 'string' ? JSON.parse(ch.pages) : ch.pages;
-                if (!Array.isArray(pages)) continue;
+            for (let chIdx = 0; chIdx < chapters.length; chIdx += CHAPTER_BATCH_SIZE) {
+                const chapterBatch = chapters.slice(chIdx, chIdx + CHAPTER_BATCH_SIZE);
 
-                // Map pages to keep track of their original indices
-                let mappedPages = pages.map((url, idx) => ({ url, idx }));
+                await Promise.all(chapterBatch.map(async (ch) => {
+                    const pages = typeof ch.pages === 'string' ? JSON.parse(ch.pages) : ch.pages;
+                    if (!Array.isArray(pages)) {
+                        processedChaptersCount++;
+                        setScanProgress({ current: processedChaptersCount, total: chapters.length });
+                        return;
+                    }
 
+                    // Map pages to keep track of their original indices
+                    let mappedPages = pages.map((url, idx) => ({ url, idx }));
 
+                    // Only scan the first image and the last 5 images
+                    const firstPage = mappedPages.slice(0, 1);
+                    const lastFivePages = mappedPages.slice(1).slice(-5);
+                    mappedPages = [...firstPage, ...lastFivePages];
 
-                // Process pages in parallel batches of 40 (Optimized for your server specs)
-                const BATCH_SIZE = 40;
-                for (let i = 0; i < mappedPages.length; i += BATCH_SIZE) {
-                    const batch = mappedPages.slice(i, i + BATCH_SIZE);
-                    const results = await Promise.all(batch.map(async (pageObj) => {
-                        const url = getImageUrl(pageObj.url);
-                        try {
-                            const dims = await new Promise<{ w: number, h: number }>((resolve, reject) => {
-                                const img = new window.Image();
-                                let resolved = false;
-                                
-                                const timeout = setTimeout(() => {
-                                    if (!resolved) {
-                                        img.src = "";
-                                        reject(new Error("Timeout"));
-                                    }
-                                }, 8000);
+                    // Process pages in parallel batches of 40 (Optimized for your server specs)
+                    const BATCH_SIZE = 40;
+                    for (let i = 0; i < mappedPages.length; i += BATCH_SIZE) {
+                        const batch = mappedPages.slice(i, i + BATCH_SIZE);
+                        const results = await Promise.all(batch.map(async (pageObj) => {
+                            const url = getImageUrl(pageObj.url);
+                            try {
+                                const dims = await new Promise<{ w: number, h: number }>((resolve, reject) => {
+                                    const img = new window.Image();
+                                    let resolved = false;
+                                    
+                                    const timeout = setTimeout(() => {
+                                        if (!resolved) {
+                                            img.src = "";
+                                            reject(new Error("Timeout"));
+                                        }
+                                    }, 8000);
 
-                                // Fast size poller: stops downloading the image as soon as the dimensions are known
-                                const poll = setInterval(() => {
-                                    if (img.width > 0 && img.height > 0) {
-                                        resolved = true;
-                                        clearInterval(poll);
-                                        clearTimeout(timeout);
-                                        const w = img.width;
-                                        const h = img.height;
-                                        img.src = ""; // Cancel remaining download
-                                        resolve({ w, h });
-                                    }
-                                }, 10);
+                                    // Fast size poller: stops downloading the image as soon as the dimensions are known
+                                    const poll = setInterval(() => {
+                                        if (img.width > 0 && img.height > 0) {
+                                            resolved = true;
+                                            clearInterval(poll);
+                                            clearTimeout(timeout);
+                                            const w = img.width;
+                                            const h = img.height;
+                                            img.src = ""; // Cancel remaining download
+                                            resolve({ w, h });
+                                        }
+                                    }, 10);
 
-                                img.onload = () => {
-                                    if (!resolved) {
-                                        resolved = true;
-                                        clearInterval(poll);
-                                        clearTimeout(timeout);
-                                        resolve({ w: img.width, h: img.height });
-                                    }
-                                };
-                                img.onerror = () => {
-                                    if (!resolved) {
-                                        resolved = true;
-                                        clearInterval(poll);
-                                        clearTimeout(timeout);
-                                        reject(new Error("Load fail"));
-                                    }
-                                };
-                                img.src = url;
-                            });
+                                    img.onload = () => {
+                                        if (!resolved) {
+                                            resolved = true;
+                                            clearInterval(poll);
+                                            clearTimeout(timeout);
+                                            resolve({ w: img.width, h: img.height });
+                                        }
+                                    };
+                                    img.onerror = () => {
+                                        if (!resolved) {
+                                            resolved = true;
+                                            clearInterval(poll);
+                                            clearTimeout(timeout);
+                                            reject(new Error("Load fail"));
+                                        }
+                                    };
+                                    img.src = url;
+                                });
 
-                            // Match if the parsed dims (dims.w, dims.h) match ANY of the validResolutions
-                            const matches = validResolutions.some(target => {
-                                const matchW = isNaN(target.w) || dims.w === target.w;
-                                const matchH = isNaN(target.h) || dims.h === target.h;
-                                return matchW && matchH;
-                            });
+                                // Match if the parsed dims (dims.w, dims.h) match ANY of the validResolutions
+                                const matches = validResolutions.some(target => {
+                                    const matchW = isNaN(target.w) || dims.w === target.w;
+                                    const matchH = isNaN(target.h) || dims.h === target.h;
+                                    return matchW && matchH;
+                                });
 
-                            if (matches) {
-                                return {
-                                    chapterId: ch.id,
-                                    chapterNumber: ch.number,
-                                    mangaTitle: ch.mangaTitle || '',
-                                    imageUrl: pageObj.url,
-                                    index: pageObj.idx
-                                };
+                                if (matches) {
+                                    return {
+                                        chapterId: ch.id,
+                                        chapterNumber: ch.number,
+                                        mangaTitle: ch.mangaTitle || '',
+                                        imageUrl: pageObj.url,
+                                        index: pageObj.idx
+                                    };
+                                }
+                            } catch (e) {
+                                console.warn("Failed to check image", url);
                             }
-                        } catch (e) {
-                            console.warn("Failed to check image", url);
-                        }
-                        return null;
-                    }));
+                            return null;
+                        }));
 
-                    results.forEach(res => {
-                        if (res) found.push(res);
-                    });
-                }
+                        results.forEach(res => {
+                            if (res) found.push(res);
+                        });
+                    }
+
+                    processedChaptersCount++;
+                    setScanProgress({ current: processedChaptersCount, total: chapters.length });
+                }));
             }
 
             setFoundImages(found);
