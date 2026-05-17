@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import sharp from 'sharp';
 import { isWasabiConfigured, uploadBufferToWasabi } from '@/lib/wasabi';
 import { notifyNewChapter } from '@/lib/discord';
@@ -59,70 +60,76 @@ function getCookieHeaderString(): string {
     return lastSolvedCookies.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
+// Resolve active FlareSolverr URL dynamically depending on environment to avoid connection timeouts
+const getFlareSolverrUrl = (): string => {
+    if (process.env.FLARESOLVERR_URL) {
+        return process.env.FLARESOLVERR_URL;
+    }
+    // Check if running inside a Docker container
+    const isDocker = existsSync('/.dockerenv');
+    return isDocker ? 'http://flaresolverr:8191/v1' : 'http://127.0.0.1:8191/v1';
+};
+
 async function getOrCreateFlareSolverrSession(flaresolverrUrl: string): Promise<string | null> {
     if (activeSessionId) return activeSessionId;
 
     try {
-        // List existing sessions
-        const listRes = await axios.post(flaresolverrUrl.replace(/\/v1\/?$/, '/sessions.list'), {}, { timeout: 5000 });
-        if (listRes.data && listRes.data.sessions && listRes.data.sessions.length > 0) {
-            activeSessionId = listRes.data.sessions[0];
-            return activeSessionId;
-        }
-
-        // Create new persistent session
+        // Create new persistent session with a fast 3 seconds timeout
         const createRes = await axios.post(flaresolverrUrl.replace(/\/v1\/?$/, '/sessions.create'), {
             session: "duskscans_session"
-        }, { timeout: 10000 });
+        }, { timeout: 3000 });
 
         if (createRes.data && createRes.data.session) {
             activeSessionId = createRes.data.session;
             return activeSessionId;
         }
     } catch (e) {
-        console.warn(`[Scraper] Session creation failed, falling back to sessionless requests.`);
+        // Fallback: Check if there's already an active session we can reuse
+        try {
+            const listRes = await axios.post(flaresolverrUrl.replace(/\/v1\/?$/, '/sessions.list'), {}, { timeout: 2000 });
+            if (listRes.data && listRes.data.sessions && listRes.data.sessions.length > 0) {
+                activeSessionId = listRes.data.sessions[0];
+                return activeSessionId;
+            }
+        } catch (listErr) {
+            console.warn(`[Scraper] Session creation failed, running in sessionless mode.`);
+        }
     }
     return null;
 }
 
 // Function to bypass Cloudflare using FlareSolverr instance with automatic Docker container host detection
 async function fetchHtmlWithFlareSolverr(url: string): Promise<string | null> {
-    const urlsToTry = [
-        'http://flaresolverr:8191/v1',   // production container name
-        'http://127.0.0.1:8191/v1'      // local fallback
-    ];
-
-    for (const flaresolverrUrl of urlsToTry) {
-        try {
-            const sessionId = await getOrCreateFlareSolverrSession(flaresolverrUrl);
-            const payload: any = {
-                cmd: "request.get",
-                url: url,
-                maxTimeout: 60000
-            };
-            if (sessionId) {
-                payload.session = sessionId;
-            }
-
-            const res = await axios.post(flaresolverrUrl, payload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 65000
-            });
-
-            if (res.data && res.data.solution) {
-                if (res.data.solution.cookies) {
-                    lastSolvedCookies = res.data.solution.cookies;
-                }
-                if (res.data.solution.userAgent) {
-                    lastSolvedUserAgent = res.data.solution.userAgent;
-                }
-                if (res.data.solution.response) {
-                    return res.data.solution.response;
-                }
-            }
-        } catch (e: any) {
-            console.warn(`[Scraper] Failed to fetch or bypass: ${url}`);
+    const flaresolverrUrl = getFlareSolverrUrl();
+    try {
+        const sessionId = await getOrCreateFlareSolverrSession(flaresolverrUrl);
+        const payload: any = {
+            cmd: "request.get",
+            url: url,
+            maxTimeout: 60000
+        };
+        if (sessionId) {
+            payload.session = sessionId;
         }
+
+        const res = await axios.post(flaresolverrUrl, payload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 65000
+        });
+
+        if (res.data && res.data.solution) {
+            if (res.data.solution.cookies) {
+                lastSolvedCookies = res.data.solution.cookies;
+            }
+            if (res.data.solution.userAgent) {
+                lastSolvedUserAgent = res.data.solution.userAgent;
+            }
+            if (res.data.solution.response) {
+                return res.data.solution.response;
+            }
+        }
+    } catch (e: any) {
+        console.warn(`[Scraper] Failed to fetch or bypass: ${url}`);
     }
     return null;
 }
