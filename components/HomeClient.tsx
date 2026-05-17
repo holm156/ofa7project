@@ -181,7 +181,7 @@ export default function HomeClient({ initialMangas }: HomeClientProps) {
                                                     const timeUntilFree = isLocked && ch.freeDate ? getTimeUntil(ch.freeDate) : null;
 
                                                     return (
-                                                        <Link key={ch.id} href={`/series/${manga.slug}/chapter-${ch.number}`} className="dusk-timeline-chapter-row">
+                                                        <Link key={ch.id} href={`/series/${manga.slug}/chapter-${ch.number}`} prefetch={false} className="dusk-timeline-chapter-row">
                                                             <div className="dusk-timeline-dot"></div>
                                                             <div className="flex items-center gap-2 overflow-hidden flex-1">
                                                                 <span className={`dusk-chapter-number ${idx === 0 ? 'text-primary' : 'text-zinc-300'}`}>

@@ -92,6 +92,7 @@ export const MangaCard = React.memo(({ manga, rank }: { manga: Manga; rank?: num
                 <div className="grid grid-cols-2 gap-2">
                     <Link
                         href={continueChapter ? `/series/${manga.slug}/chapter-${continueChapter.number}` : `/series/${manga.slug}`}
+                        prefetch={false}
                         className="flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-xl py-2 hover:bg-white/10 transition-all group/btn"
                     >
                         <span className="text-[11px] font-black text-zinc-100 group-hover/btn:text-white">
@@ -103,6 +104,7 @@ export const MangaCard = React.memo(({ manga, rank }: { manga: Manga; rank?: num
                     </Link>
                     <Link
                         href={latestChapter ? `/series/${manga.slug}/chapter-${latestChapter.number}` : `/series/${manga.slug}`}
+                        prefetch={false}
                         className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded-xl py-2 hover:bg-primary/20 transition-all group/btn"
                     >
                         <span className="text-[11px] font-black text-primary group-hover/btn:brightness-125">
