@@ -49,6 +49,27 @@ const getContentTypeByExt = (ext: string): string => {
     }
 }
 
+// Function to bypass Cloudflare using local FlareSolverr instance
+async function fetchHtmlWithFlareSolverr(url: string): Promise<string | null> {
+    try {
+        const payload = {
+            cmd: "request.get",
+            url: url,
+            maxTimeout: 60000
+        };
+        const res = await axios.post('http://127.0.0.1:8191/v1', payload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 65000
+        });
+        if (res.data && res.data.solution && res.data.solution.response) {
+            return res.data.solution.response;
+        }
+    } catch (e) {
+        console.warn(`[FlareSolverr] Failed to fetch or bypass: ${url}`);
+    }
+    return null;
+}
+
 async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: string, chapterTitle: string, autoPublish: boolean, sourceName?: string, sourceColor?: string) {
     const imageUrls: string[] = [];
 
@@ -77,16 +98,41 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         }
     }
 
-    // Fetch the HTML page (Standard fallback for ThunderScans and others)
+    // Fetch the HTML page
     let html = '';
     if (imageUrls.length === 0) {
-        const response = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            },
-            timeout: 15000
-        });
-        html = response.data;
+        // Domains that aggressively use Cloudflare
+        const useFlareSolverr = url.includes('asuracomic') || url.includes('flamescans') || url.includes('asurascans') || url.includes('luminousscans');
+
+        if (useFlareSolverr) {
+            console.log(`[Scraper] Protected domain detected, routing through FlareSolverr: ${url}`);
+            try {
+                const fsRes = await fetchHtmlWithFlareSolverr(url);
+                if (fsRes) html = fsRes;
+            } catch(e) {}
+        }
+
+        // Standard fallback if FlareSolverr is not used, or if it failed/not running
+        if (!html) {
+            try {
+                const response = await axios.get(url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    },
+                    timeout: 15000
+                });
+                html = response.data;
+            } catch (err: any) {
+                // Check if axios failed with 403 or timeout, and try flaresolverr as a last resort
+                if (err.response?.status === 403 || err.code === 'ECONNABORTED') {
+                    console.log(`[Scraper] Standard request failed (${err.message}), attempting FlareSolverr fallback for: ${url}`);
+                    const fsFallbackRes = await fetchHtmlWithFlareSolverr(url);
+                    if (fsFallbackRes) html = fsFallbackRes;
+                }
+                
+                if (!html) throw err;
+            }
+        }
     }
 
     const $ = cheerio.load(html || '<html/>');
@@ -138,6 +184,38 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
                 }
             });
             if (imageUrls.length > 0) break;
+        }
+    }
+
+    // 3. Next.js Data Extraction (For AsuraScans new layout and similar React sites)
+    if (imageUrls.length < 5) {
+        const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/);
+        if (nextDataMatch) {
+            try {
+                // Find all image URLs inside the Next.js JSON state
+                const urls = nextDataMatch[1].match(/https?:\/\/[^"]+\.(?:jpg|png|webp|jpeg)/gi);
+                if (urls) {
+                    urls.forEach(u => {
+                        // Filter out obviously irrelevant images to save processing time
+                        if (!u.includes('avatar') && !u.includes('logo') && !u.includes('icon') && !imageUrls.includes(u)) {
+                            imageUrls.push(u);
+                        }
+                    });
+                }
+            } catch (e) { }
+        }
+    }
+
+    // 4. Aggressive Global Regex Fallback
+    if (imageUrls.length < 5) {
+        // Find anything that looks like an image URL in the raw HTML string
+        const globalUrls = html.match(/https?:\/\/[^"'\s]+\.(?:jpg|png|webp|jpeg)/gi);
+        if (globalUrls) {
+            globalUrls.forEach(u => {
+                if (!u.includes('avatar') && !u.includes('logo') && !u.includes('icon') && !imageUrls.includes(u)) {
+                    imageUrls.push(u);
+                }
+            });
         }
     }
 
@@ -384,10 +462,13 @@ export async function POST(req: Request) {
                         data: { progress: Math.floor((i / urls.length) * 100) }
                     });
 
-                    // Add delay for bulk requests (except the first one)
+                    // Add dynamic randomized delay for bulk requests (anti-ban)
                     if (i > 0) {
-                        console.log(`Waiting 3 second before scraping next chapter: ${url}...`);
-                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        const minDelay = 5000;
+                        const maxDelay = 12000;
+                        const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+                        console.log(`Waiting ${Math.round(delay/1000)} seconds before scraping next chapter: ${url}...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
                     }
                     try {
                         const res = await scrapeSingleUrl(

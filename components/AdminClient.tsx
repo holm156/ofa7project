@@ -403,11 +403,11 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
         for (let i = 0; i < updatedPages.length; i++) {
             const page = updatedPages[i];
             const url = page.type === 'file' ? page.previewUrl : (page.content as string);
-            
+
             if (!url) continue;
 
             try {
-                const dimensions = await new Promise<{w: number, h: number}>((resolve, reject) => {
+                const dimensions = await new Promise<{ w: number, h: number }>((resolve, reject) => {
                     const img = new window.Image();
                     img.onload = () => resolve({ w: img.width, h: img.height });
                     img.onerror = reject;
@@ -479,12 +479,12 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                     const results = await Promise.all(batch.map(async (pageUrl, batchIdx) => {
                         const url = getImageUrl(pageUrl);
                         try {
-                            const dims = await new Promise<{w: number, h: number}>((resolve, reject) => {
+                            const dims = await new Promise<{ w: number, h: number }>((resolve, reject) => {
                                 const img = new window.Image();
                                 const timeout = setTimeout(() => {
                                     img.src = "";
                                     reject(new Error("Timeout"));
-                                }, 8000); 
+                                }, 8000);
 
                                 img.onload = () => {
                                     clearTimeout(timeout);
@@ -537,12 +537,12 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             // This requires a custom API call or a sequence of get/update chapter
             const chRes = await fetch(`/api/chapter/${img.chapterId}`);
             const ch = await chRes.json();
-            
+
             const pages = Array.isArray(ch.pages) ? ch.pages : JSON.parse(ch.pages);
             const updatedPages = pages.filter((p: string) => p !== img.imageUrl);
-            
+
             await api.updateChapter(img.chapterId, { pages: updatedPages });
-            
+
             // Delete from S3/Wasabi if it's a local file
             if (img.imageUrl.startsWith('/')) {
                 api.deleteFile(img.imageUrl).catch(console.error);
@@ -575,14 +575,14 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                 const ch = await chRes.json();
                 const pages = Array.isArray(ch.pages) ? ch.pages : JSON.parse(ch.pages);
                 const updatedPages = pages.filter((p: string) => !urls.includes(p));
-                
+
                 await api.updateChapter(chId, { pages: updatedPages });
-                
+
                 // Cleanup files
                 urls.forEach(url => {
                     if (url.startsWith('/')) api.deleteFile(url).catch(console.error);
                 });
-                
+
                 successCount += urls.length;
             } catch (e) {
                 console.error(`Failed to update chapter ${chId}`, e);
@@ -972,17 +972,17 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
             if (finalPages.length === 0) throw new Error("No valid pages found");
 
-                const payload = {
-                    title: chapterTitle || `Chapter ${chapterNumber}`,
-                    number: Number(chapterNumber),
-                    pages: finalPages,
-                    price: Number(chapterPrice),
-                    freeDate: chapterFreeDate ? new Date(chapterFreeDate).toISOString() : undefined,
-                    sourceName: chapterSourceName,
-                    sourceColor: chapterSourceColor,
-                    releaseDate: chapterReleaseDate ? new Date(chapterReleaseDate).toISOString() : undefined,
-                    mangaId: chapterMangaId
-                };
+            const payload = {
+                title: chapterTitle || `Chapter ${chapterNumber}`,
+                number: Number(chapterNumber),
+                pages: finalPages,
+                price: Number(chapterPrice),
+                freeDate: chapterFreeDate ? new Date(chapterFreeDate).toISOString() : undefined,
+                sourceName: chapterSourceName,
+                sourceColor: chapterSourceColor,
+                releaseDate: chapterReleaseDate ? new Date(chapterReleaseDate).toISOString() : undefined,
+                mangaId: chapterMangaId
+            };
 
             if (isEditingChapter && selectedChapter) {
                 const updated = await api.updateChapter(selectedChapter.id, payload);
@@ -1156,7 +1156,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             });
 
             const initData = await res.json();
-            
+
             if (!res.ok) {
                 if (progressInterval) clearInterval(progressInterval);
                 showToast(initData.error || 'Failed to start scraper', 'error');
@@ -1187,7 +1187,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                         setScraperResult(data);
                         setExpandedBulkIndices([]);
                         showToast(data.success ? 'Process finished successfully!' : 'Images extracted!', 'success');
-                        
+
                         if (data.success) {
                             setScraperUrl('');
                             setScraperBulkUrls('');
@@ -1611,8 +1611,8 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
                                             <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">Width (px)</label>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 placeholder={resFilterMode === 'exact' ? "e.g. 720" : "Ignore"}
                                                 className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
                                                 value={resFilterWidth}
@@ -1623,8 +1623,8 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                             <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-1">
                                                 {resFilterMode === 'exact' ? 'Height (px)' : 'Max Height'}
                                             </label>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 placeholder={resFilterMode === 'exact' ? "e.g. 1280" : "e.g. 500"}
                                                 className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all"
                                                 value={resFilterHeight}
@@ -1644,8 +1644,8 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     Scanning {scanProgress.current}/{scanProgress.total} <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                                 </div>
                                                 <div className="w-full max-w-[200px] h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
-                                                    <div 
-                                                        className="h-full bg-white transition-all duration-300" 
+                                                    <div
+                                                        className="h-full bg-white transition-all duration-300"
                                                         style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
                                                     />
                                                 </div>
@@ -1720,7 +1720,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                         <Card className="p-8 bg-zinc-950/40 border-white/5 backdrop-blur-xl relative overflow-hidden group h-fit">
                             {/* Decorative background glow */}
                             <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/20 transition-colors duration-700" />
-                            
+
                             <h2 className="text-2xl font-black mb-8 flex items-center gap-3 text-white tracking-tight">
                                 <div className="p-2 bg-primary/20 rounded-lg">
                                     <Plus className="w-6 h-6 text-primary" />
@@ -1742,10 +1742,10 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     <div className="group/upload relative aspect-[3/4] border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-900/30 rounded-2xl overflow-hidden transition-all duration-300">
                                                         {coverFile || mangaForm.cover ? (
                                                             <div className="absolute inset-0">
-                                                                <img 
-                                                                    src={coverFile ? URL.createObjectURL(coverFile) : getImageUrl(mangaForm.cover)} 
-                                                                    className="w-full h-full object-cover" 
-                                                                    alt="Cover" 
+                                                                <img
+                                                                    src={coverFile ? URL.createObjectURL(coverFile) : getImageUrl(mangaForm.cover)}
+                                                                    className="w-full h-full object-cover"
+                                                                    alt="Cover"
                                                                 />
                                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center">
                                                                     <p className="text-white text-xs font-bold">Change Image</p>
@@ -1782,10 +1782,10 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     <div className="group/upload relative aspect-video border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-900/30 rounded-2xl overflow-hidden transition-all duration-300">
                                                         {bgFile || mangaForm.backgroundImage ? (
                                                             <div className="absolute inset-0">
-                                                                <img 
-                                                                    src={bgFile ? URL.createObjectURL(bgFile) : getImageUrl(mangaForm.backgroundImage)} 
-                                                                    className="w-full h-full object-cover" 
-                                                                    alt="Background" 
+                                                                <img
+                                                                    src={bgFile ? URL.createObjectURL(bgFile) : getImageUrl(mangaForm.backgroundImage)}
+                                                                    className="w-full h-full object-cover"
+                                                                    alt="Background"
                                                                 />
                                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center">
                                                                     <p className="text-white text-xs font-bold">Change Image</p>
@@ -1855,8 +1855,8 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                                 key={status}
                                                                 type="button"
                                                                 onClick={() => setMangaForm({ ...mangaForm, status: status as any })}
-                                                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all border ${mangaForm.status === status 
-                                                                    ? 'bg-primary/20 border-primary/50 text-primary' 
+                                                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all border ${mangaForm.status === status
+                                                                    ? 'bg-primary/20 border-primary/50 text-primary'
                                                                     : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
                                                             >
                                                                 {status}
@@ -1872,8 +1872,8 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                                 key={type}
                                                                 type="button"
                                                                 onClick={() => setMangaForm({ ...mangaForm, type: type as any })}
-                                                                className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${mangaForm.type === type 
-                                                                    ? 'bg-primary/20 border-primary/50 text-primary' 
+                                                                className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${mangaForm.type === type
+                                                                    ? 'bg-primary/20 border-primary/50 text-primary'
                                                                     : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
                                                             >
                                                                 {type}
@@ -1944,9 +1944,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                             }}
                                                             className="flex-1 bg-transparent border-0 text-sm focus:outline-none focus:ring-0 text-white placeholder:text-zinc-600"
                                                         />
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={addCustomGenre} 
+                                                        <button
+                                                            type="button"
+                                                            onClick={addCustomGenre}
                                                             className="p-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all"
                                                         >
                                                             <Plus className="w-4 h-4" />
@@ -1959,16 +1959,16 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
                                     <div className="flex gap-4 pt-6">
                                         {isEditingManga && (
-                                            <button 
-                                                type="button" 
-                                                onClick={() => { setIsEditingManga(false); setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' }); setCoverFile(null); setBgFile(null); }} 
+                                            <button
+                                                type="button"
+                                                onClick={() => { setIsEditingManga(false); setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' }); setCoverFile(null); setBgFile(null); }}
                                                 className="flex-1 py-3.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-black text-sm hover:bg-zinc-800 transition-all uppercase tracking-widest"
                                             >
                                                 Cancel
                                             </button>
                                         )}
-                                        <button 
-                                            type="submit" 
+                                        <button
+                                            type="submit"
                                             className={`flex-[2] py-3.5 rounded-xl bg-primary text-white font-black text-sm hover:shadow-[0_0_30px_rgba(var(--primary-rgb),0.4)] transition-all uppercase tracking-widest flex items-center justify-center gap-2 group/submit`}
                                         >
                                             {isEditingManga ? (
@@ -1986,7 +1986,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                         <div className="space-y-8">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-zinc-900/40 p-5 rounded-2xl border border-white/5 backdrop-blur-md">
                                 <h3 className="font-black text-xl tracking-tight flex items-center gap-2 text-white">
-                                    Existing Manga 
+                                    Existing Manga
                                     <span className="text-primary text-sm bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">{mangas.length}</span>
                                 </h3>
                                 <div className="relative w-full sm:w-72 group">
@@ -2005,7 +2005,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                 {mangas.filter(m => m.title.toLowerCase().includes(mangaSearch.toLowerCase())).map(m => (
                                     <div key={m.id} className="group relative flex gap-5 p-4 bg-zinc-900/20 rounded-2xl border border-white/5 hover:border-primary/30 hover:bg-primary/5 transition-all duration-500 overflow-hidden">
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                                        
+
                                         <div className="relative w-20 h-28 flex-shrink-0 overflow-hidden rounded-xl shadow-2xl shadow-black/50">
                                             <img src={getImageUrl(m.cover)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
                                         </div>
@@ -2021,7 +2021,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     </span>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="flex flex-wrap gap-2 mt-auto">
                                                 <Badge color="bg-primary/10 text-primary border-primary/20 text-[9px] uppercase font-black tracking-widest">{m.type}</Badge>
                                                 <Badge color="bg-black/40 text-yellow-500 border-white/5 text-[9px] font-black flex items-center gap-1">
@@ -2203,26 +2203,26 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                             </div>
 
                                             <div className="border-t border-zinc-800/50 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <Input 
-                                                    label="Source Name" 
-                                                    placeholder="e.g. Asura Scans" 
-                                                    value={scraperSourceName} 
-                                                    onChange={e => setScraperSourceName(e.target.value)} 
+                                                <Input
+                                                    label="Source Name"
+                                                    placeholder="e.g. Asura Scans"
+                                                    value={scraperSourceName}
+                                                    onChange={e => setScraperSourceName(e.target.value)}
                                                     className="text-xs"
                                                 />
                                                 <div className="space-y-1">
                                                     <label className="block text-xs font-medium text-zinc-400 mb-1">Source Color</label>
                                                     <div className="flex gap-2 items-center">
-                                                        <input 
-                                                            type="color" 
-                                                            value={scraperSourceColor} 
-                                                            onChange={e => setScraperSourceColor(e.target.value)} 
+                                                        <input
+                                                            type="color"
+                                                            value={scraperSourceColor}
+                                                            onChange={e => setScraperSourceColor(e.target.value)}
                                                             className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer"
                                                         />
-                                                        <Input 
-                                                            placeholder="#e11d48" 
-                                                            value={scraperSourceColor} 
-                                                            onChange={e => setScraperSourceColor(e.target.value)} 
+                                                        <Input
+                                                            placeholder="#e11d48"
+                                                            value={scraperSourceColor}
+                                                            onChange={e => setScraperSourceColor(e.target.value)}
                                                             className="flex-1 text-xs"
                                                         />
                                                     </div>
@@ -2301,10 +2301,9 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                     <div key={job.id} className="p-4 bg-zinc-900/50 rounded-xl border border-white/5 hover:border-zinc-700 transition-all group">
                                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
                                                             <div className="flex items-center gap-3">
-                                                                <div className={`w-2 h-2 rounded-full ${
-                                                                    job.status === 'processing' ? 'bg-blue-500 animate-pulse' : 
-                                                                    job.status === 'completed' ? 'bg-green-500' : 'bg-red-500'
-                                                                }`} />
+                                                                <div className={`w-2 h-2 rounded-full ${job.status === 'processing' ? 'bg-blue-500 animate-pulse' :
+                                                                        job.status === 'completed' ? 'bg-green-500' : 'bg-red-500'
+                                                                    }`} />
                                                                 <span className="text-xs font-black uppercase tracking-wider text-zinc-300">
                                                                     {job.status}
                                                                 </span>
@@ -2319,11 +2318,10 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
                                                         <div className="space-y-2">
                                                             <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                                                <div 
-                                                                    className={`h-full transition-all duration-1000 ${
-                                                                        job.status === 'completed' ? 'bg-green-500' : 
-                                                                        job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
-                                                                    }`}
+                                                                <div
+                                                                    className={`h-full transition-all duration-1000 ${job.status === 'completed' ? 'bg-green-500' :
+                                                                            job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
+                                                                        }`}
                                                                     style={{ width: `${job.progress}%` }}
                                                                 />
                                                             </div>
@@ -2331,7 +2329,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                                 <span className="text-zinc-600">Progress: {job.progress}%</span>
                                                                 {job.error && <span className="text-red-500 line-clamp-1 max-w-[200px]">{job.error}</span>}
                                                                 {job.status === 'completed' && (
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => setScraperResult(job.results)}
                                                                         className="text-primary hover:underline"
                                                                     >
@@ -2585,16 +2583,16 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                 <div className="space-y-1">
                                                     <label className="block text-sm font-medium text-zinc-400 mb-1">Source Color</label>
                                                     <div className="flex gap-2 items-center">
-                                                        <input 
-                                                            type="color" 
-                                                            value={chapterSourceColor} 
-                                                            onChange={e => setChapterSourceColor(e.target.value)} 
+                                                        <input
+                                                            type="color"
+                                                            value={chapterSourceColor}
+                                                            onChange={e => setChapterSourceColor(e.target.value)}
                                                             className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer"
                                                         />
-                                                        <Input 
-                                                            placeholder="#e11d48" 
-                                                            value={chapterSourceColor} 
-                                                            onChange={e => setChapterSourceColor(e.target.value)} 
+                                                        <Input
+                                                            placeholder="#e11d48"
+                                                            value={chapterSourceColor}
+                                                            onChange={e => setChapterSourceColor(e.target.value)}
                                                             className="flex-1 bg-zinc-900/50 border-zinc-800"
                                                         />
                                                     </div>
@@ -2651,7 +2649,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                             <div className="bg-zinc-950/40 rounded-2xl border border-white/5 p-6 animate-in fade-in slide-in-from-top-4 duration-700 mt-6 backdrop-blur-xl relative overflow-hidden group">
                                                                 {/* Background glow */}
                                                                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/10 transition-colors" />
-                                                                
+
                                                                 <div className="flex items-center justify-between mb-6 relative z-10">
                                                                     <div className="flex items-center gap-3">
                                                                         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
@@ -2681,7 +2679,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                                                                 alt=""
                                                                             />
-                                                                            
+
                                                                             {/* Page Number Badge (Always Visible) */}
                                                                             <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 z-20">
                                                                                 <p className="text-[10px] font-black text-white">#{idx + 1}</p>
@@ -2741,16 +2739,16 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
                                             <div className="flex gap-4 pt-8">
                                                 {isEditingChapter && (
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => { setIsEditingChapter(false); setSelectedChapter(null); setChapterTitle(''); setChapterNumber(''); setChapterFiles(null); setChapterURLs(''); setChapterPrice('0'); setChapterFreeDate(''); setChapterPages([]); }} 
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setIsEditingChapter(false); setSelectedChapter(null); setChapterTitle(''); setChapterNumber(''); setChapterFiles(null); setChapterURLs(''); setChapterPrice('0'); setChapterFreeDate(''); setChapterPages([]); }}
                                                         className="px-8 py-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-black text-xs hover:bg-zinc-800 transition-all uppercase tracking-widest active:scale-95"
                                                     >
                                                         Cancel
                                                     </button>
                                                 )}
-                                                <button 
-                                                    type="submit" 
+                                                <button
+                                                    type="submit"
                                                     disabled={isUploading}
                                                     className="flex-1 py-4 rounded-2xl bg-primary text-white font-black text-sm hover:shadow-[0_0_30px_rgba(var(--primary-rgb),0.4)] transition-all uppercase tracking-widest flex items-center justify-center gap-2 group/btn active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
