@@ -50,13 +50,13 @@ export async function POST(
             create: { id: randomUUID(), userId, mangaId, rating }
         });
 
-        // 2. Recalculate average
-        const allRatings = await prisma.rating.findMany({
+        // 2. Recalculate average using DB aggregation
+        const agg = await prisma.rating.aggregate({
             where: { mangaId },
-            select: { rating: true }
+            _avg: { rating: true }
         });
 
-        const average = allRatings.reduce((acc, curr) => acc + curr.rating, 0) / allRatings.length;
+        const average = agg._avg.rating || rating;
 
         const updatedManga = await prisma.manga.update({
             where: { id: mangaId },

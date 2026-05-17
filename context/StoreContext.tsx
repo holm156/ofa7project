@@ -257,8 +257,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const refreshNotifications = useCallback(async () => {
         if (!currentUser) return;
         try {
-            const mangas = await api.getMangas();
-            const bookmarkedMangas = mangas.filter(m => currentUser.bookmarks.includes(m.id));
+            // Fetch ONLY the bookmarked mangas, not the entire database
+            const bookmarkedMangas = currentUser.bookmarks.length > 0 
+                ? await api.getMangas({ ids: currentUser.bookmarks })
+                : [];
 
             const newChapterNotifications: Notification[] = bookmarkedMangas
                 .filter(m => {
@@ -309,8 +311,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => {
         if (currentUser) {
             refreshNotifications();
-            // Poll for new notifications every 15 seconds
-            const interval = setInterval(refreshNotifications, 15000);
+            // Poll for new notifications every 2 minutes (reduced from 15s to avoid hammering the DB)
+            const interval = setInterval(refreshNotifications, 120000);
             return () => clearInterval(interval);
         }
     }, [currentUser, refreshNotifications]);

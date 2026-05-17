@@ -240,8 +240,9 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         return imgUrl;
     });
 
-    // --- HEIGHT FILTER (Parallel Batches of 15) ---
+    // --- HEIGHT FILTER & DOWNLOAD CACHE (Parallel Batches of 15) ---
     const finalImageUrls: string[] = [];
+    const downloadedBuffers = new Map<string, Buffer>();
     const FILTER_BATCH_SIZE = 15;
     
     for (let i = 0; i < candidateUrls.length; i += FILTER_BATCH_SIZE) {
@@ -257,6 +258,8 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
                 const meta = await sharp(buffer, { limitInputPixels: false }).metadata();
 
                 if (meta.height && meta.height >= 400) {
+                    // Cache the buffer to avoid downloading it a second time
+                    downloadedBuffers.set(imgUrl, buffer);
                     return imgUrl;
                 }
             } catch (error) {
@@ -297,11 +300,18 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         await Promise.all(batchIndices.map(async (idx) => {
             const imgUrl = finalImageUrls[idx];
             try {
-                const imgRes = await axios.get(imgUrl, {
-                    responseType: 'arraybuffer',
-                    headers: { 'Referer': new URL(url).origin }
-                });
-                const { buffer, ext } = await convertImage(Buffer.from(imgRes.data));
+                let imgBuffer = downloadedBuffers.get(imgUrl);
+                
+                // Fallback in case the buffer was not cached or evicted
+                if (!imgBuffer) {
+                    const imgRes = await axios.get(imgUrl, {
+                        responseType: 'arraybuffer',
+                        headers: { 'Referer': new URL(url).origin }
+                    });
+                    imgBuffer = Buffer.from(imgRes.data);
+                }
+
+                const { buffer, ext } = await convertImage(imgBuffer);
                 const filename = `${(idx + 1).toString().padStart(3, '0')}.${ext}`;
                 
                 if (useWasabi) {

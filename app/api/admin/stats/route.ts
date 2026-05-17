@@ -49,15 +49,15 @@ export async function GET() {
       take: 5
     });
 
-    const topMangaDetails = await Promise.all(
-      topViews.map(async (v) => {
-        const manga = await prisma.manga.findUnique({
-          where: { id: v.mangaId },
-          select: { title: true, slug: true, cover: true }
-        });
-        return { ...manga, views: v._count.id };
-      })
-    );
+    const topMangaIds = topViews.map(v => v.mangaId);
+    const topMangaList = await prisma.manga.findMany({
+      where: { id: { in: topMangaIds } },
+      select: { id: true, title: true, slug: true, cover: true }
+    });
+    const topMangaDetails = topViews.map(v => {
+      const manga = topMangaList.find(m => m.id === v.mangaId);
+      return { ...manga, views: v._count.id };
+    });
 
     // 4. Chapter statistics
     const totalChapters = await prisma.chapter.count();

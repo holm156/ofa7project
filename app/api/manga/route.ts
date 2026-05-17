@@ -5,10 +5,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth";
 import { generateSlug } from '../../../lib/slug';
 
-import { getMangas } from '../../../lib/queries';
+import { getMangas, getMangasByIds } from '../../../lib/queries';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const idsParam = searchParams.get('ids');
+    
+    if (idsParam) {
+        const ids = idsParam.split(',').filter(Boolean);
+        const mangas = await getMangasByIds(ids);
+        return NextResponse.json(mangas);
+    }
+
     const mangas = await getMangas();
     return NextResponse.json(mangas);
   } catch (e) {

@@ -21,7 +21,10 @@ export async function GET(req: Request) {
                     orderBy: { timestamp: 'desc' },
                     take: 10
                 },
-                unlockedChapters: true,
+                unlockedChapters: {
+                    select: { chapterId: true },
+                    take: 200
+                },
                 accounts: true
             } as any
         }) as any;

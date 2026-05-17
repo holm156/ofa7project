@@ -39,15 +39,17 @@ export async function GET(
             orderBy: { createdAt: 'asc' }
         });
 
-        const formatted = await Promise.all(replies.map(async (c: any) => {
-            const votes = await prisma.commentVote.groupBy({
-                by: ['type'],
-                where: { commentId: c.id },
-                _count: true
-            });
+        const replyIds = replies.map((c: any) => c.id);
+        const allVotes = await prisma.commentVote.groupBy({
+            by: ['commentId', 'type'],
+            where: { commentId: { in: replyIds } },
+            _count: true
+        });
 
-            const likes = votes.find(v => v.type === 1)?._count || 0;
-            const dislikes = votes.find(v => v.type === -1)?._count || 0;
+        const formatted = replies.map((c: any) => {
+            const commentVotes = allVotes.filter(v => v.commentId === c.id);
+            const likes = commentVotes.find(v => v.type === 1)?._count || 0;
+            const dislikes = commentVotes.find(v => v.type === -1)?._count || 0;
 
             return {
                 id: c.id,
@@ -65,7 +67,7 @@ export async function GET(
                 userVote: c.votes?.[0]?.type || 0,
                 replyCount: c._count.replies,
             };
-        }));
+        });
 
         return NextResponse.json(formatted);
     } catch (error) {

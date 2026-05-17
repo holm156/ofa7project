@@ -11,13 +11,17 @@ import Autoplay from 'embla-carousel-autoplay';
 
 export const MangaCard = React.memo(({ manga, rank }: { manga: Manga; rank?: number }) => {
     const { currentUser, toggleBookmark } = useStore();
-    const [chapters, setChapters] = useState<Chapter[]>([]);
+    const [chapters, setChapters] = useState<Chapter[]>(
+        // Use chapters already attached to the manga object if available (avoids redundant API calls)
+        (manga as any).chapters?.length > 0 ? (manga as any).chapters : []
+    );
 
     useEffect(() => {
+        // Only fetch chapters from API if the manga doesn't already have them attached
+        if ((manga as any).chapters?.length > 0) return;
         const loadChapters = async () => {
             try {
                 const fetched = await api.getChapters(manga.id);
-                // Sort by number descending for latest, but we need both ends
                 setChapters(fetched.sort((a, b) => b.number - a.number));
             } catch (e) { }
         };

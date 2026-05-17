@@ -5,14 +5,12 @@ export async function getMangas(): Promise<(Manga & { chapters: Chapter[] })[]> 
     try {
         const mangas = await prisma.manga.findMany({
             include: {
-                viewHistory: {
-                    where: { timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
-                },
                 genres: true,
                 ratings: true,
                 user: { select: { username: true } },
                 chapters: {
                     orderBy: { number: 'desc' },
+                    take: 4,
                     select: { id: true, title: true, number: true, releaseDate: true, freeDate: true, price: true, mangaId: true, sourceName: true } as any
                 }
             },
@@ -28,7 +26,6 @@ export async function getMangas(): Promise<(Manga & { chapters: Chapter[] })[]> 
                 freeDate: c.freeDate?.toISOString() || null
             })) || [],
             genres: m.genres?.map((g: any) => g.name) || [],
-            viewHistory: m.viewHistory?.map((vh: any) => vh.timestamp.getTime()) || [],
             userRatings: m.ratings || [],
             uploaderName: m.user?.username || 'Dusk Scans'
         })) as unknown as (Manga & { chapters: Chapter[] })[];
@@ -38,12 +35,47 @@ export async function getMangas(): Promise<(Manga & { chapters: Chapter[] })[]> 
     }
 }
 
+export async function getMangasByIds(ids: string[]): Promise<(Manga & { chapters: Chapter[] })[]> {
+    try {
+        const mangas = await prisma.manga.findMany({
+            where: { id: { in: ids } },
+            include: {
+                genres: true,
+                ratings: true,
+                user: { select: { username: true } },
+                chapters: {
+                    orderBy: { number: 'desc' },
+                    take: 1,
+                    select: { id: true, title: true, number: true, releaseDate: true, freeDate: true, price: true, mangaId: true, sourceName: true } as any
+                }
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        return mangas.map((m: any) => ({
+            ...m,
+            updatedAt: m.updatedAt?.toISOString() || new Date().toISOString(),
+            chapters: m.chapters?.map((c: any) => ({
+                ...c,
+                releaseDate: c.releaseDate?.toISOString() || new Date().toISOString(),
+                freeDate: c.freeDate?.toISOString() || null
+            })) || [],
+            genres: m.genres?.map((g: any) => g.name) || [],
+
+            userRatings: m.ratings || [],
+            uploaderName: m.user?.username || 'Dusk Scans'
+        })) as unknown as (Manga & { chapters: Chapter[] })[];
+    } catch (error) {
+        console.error("Error fetching mangas by ids:", error);
+        return [];
+    }
+}
+
 export async function getMangaById(id: string): Promise<Manga | null> {
     try {
         const manga = await prisma.manga.findUnique({
             where: { id },
             include: {
-                viewHistory: true,
                 genres: true,
                 ratings: true,
                 user: { select: { username: true } }
@@ -56,7 +88,7 @@ export async function getMangaById(id: string): Promise<Manga | null> {
             ...manga,
             updatedAt: manga.updatedAt?.toISOString() || new Date().toISOString(),
             genres: manga.genres?.map((g: any) => g.name) || [],
-            viewHistory: manga.viewHistory?.map((vh: any) => vh.timestamp.getTime()) || [],
+
             userRatings: manga.ratings || [],
             uploaderName: manga.user?.username || 'Dusk Scans'
         } as unknown as Manga;
@@ -71,7 +103,6 @@ export async function getMangaBySlug(slug: string): Promise<Manga | null> {
         const manga = await prisma.manga.findUnique({
             where: { slug },
             include: {
-                viewHistory: true,
                 genres: true,
                 ratings: true,
                 user: { select: { username: true } }
@@ -84,7 +115,7 @@ export async function getMangaBySlug(slug: string): Promise<Manga | null> {
             ...manga,
             updatedAt: manga.updatedAt?.toISOString() || new Date().toISOString(),
             genres: manga.genres?.map((g: any) => g.name) || [],
-            viewHistory: manga.viewHistory?.map((vh: any) => vh.timestamp.getTime()) || [],
+
             userRatings: manga.ratings || [],
             uploaderName: manga.user?.username || 'Dusk Scans'
         } as unknown as Manga;
@@ -98,22 +129,22 @@ export async function getChaptersByMangaId(mangaId: string): Promise<Chapter[]> 
     try {
         const chapters = await prisma.chapter.findMany({
             where: { mangaId },
-            orderBy: { number: 'desc' }
+            orderBy: { number: 'desc' },
+            // Never load pages for all chapters - they are large JSON blobs.
+            // Pages are only needed for the single chapter being actively read.
+            select: {
+                id: true, mangaId: true, number: true, title: true,
+                releaseDate: true, freeDate: true, price: true,
+                sourceName: true, sourceColor: true, updatedAt: true
+            }
         });
 
-        return chapters.map(c => {
-            let pagesArr: string[] = [];
-            try {
-                pagesArr = typeof c.pages === 'string' ? JSON.parse(c.pages) : (Array.isArray(c.pages) ? c.pages : []);
-            } catch (err) {
-                console.error("JSON parse error for pages", err);
-            }
+        return chapters.map((c: any) => {
             return {
                 ...c,
                 releaseDate: c.releaseDate?.toISOString() || new Date().toISOString(),
                 freeDate: c.freeDate?.toISOString() || null,
-                pages: Array.isArray(pagesArr) ? pagesArr : [],
-                // We don't calculate isLocked here, permissions are checked per user request
+                pages: [],
             };
         }) as unknown as Chapter[];
     } catch (error) {
@@ -145,15 +176,17 @@ export async function getCommentsByMangaId(mangaId: string, chapterId?: string, 
             },
         });
 
-        const formatted = await Promise.all(comments.map(async (c: any) => {
-            const votes = await prisma.commentVote.groupBy({
-                by: ['type'],
-                where: { commentId: c.id },
-                _count: true
-            });
+        const commentIds = comments.map((c: any) => c.id);
+        const allVotes = await prisma.commentVote.groupBy({
+            by: ['commentId', 'type'],
+            where: { commentId: { in: commentIds } },
+            _count: true
+        });
 
-            const likes = votes.find(v => v.type === 1)?._count || 0;
-            const dislikes = votes.find(v => v.type === -1)?._count || 0;
+        const formatted = comments.map((c: any) => {
+            const commentVotes = allVotes.filter(v => v.commentId === c.id);
+            const likes = commentVotes.find(v => v.type === 1)?._count || 0;
+            const dislikes = commentVotes.find(v => v.type === -1)?._count || 0;
 
             return {
                 id: c.id,
@@ -171,7 +204,7 @@ export async function getCommentsByMangaId(mangaId: string, chapterId?: string, 
                 userVote: c.votes?.[0]?.type || 0,
                 replyCount: c._count.replies,
             };
-        }));
+        });
 
         // Sort on server
         if (sortBy === 'best') {
@@ -181,8 +214,6 @@ export async function getCommentsByMangaId(mangaId: string, chapterId?: string, 
         } else {
             formatted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         }
-
-        return formatted as unknown as Comment[];
 
         return formatted as unknown as Comment[];
     } catch (error) {

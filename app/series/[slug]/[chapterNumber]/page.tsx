@@ -42,7 +42,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ slug: s
 
     const [chapter, chaptersList, relatedMangas] = await Promise.all([
         getChapterByNumber(manga.id, num),
-        getChaptersByMangaId(manga.id),
+        getChaptersByMangaId(manga.id), // No pages loaded by default anymore
         getRelatedMangas(manga.id, manga.genres)
     ]);
 
@@ -57,7 +57,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ slug: s
     if (session?.user?.email) {
         userFromDb = await prisma.user.findUnique({
             where: { email: session.user.email },
-            include: { unlockedChapters: true }
+            include: { unlockedChapters: { select: { chapterId: true } } }
         });
     }
 

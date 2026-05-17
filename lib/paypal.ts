@@ -1,7 +1,8 @@
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const base = "https://api-m.paypal.com";
+const PAYPAL_MODE = process.env.PAYPAL_MODE || 'sandbox';
+const base = PAYPAL_MODE === 'live' ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 
 export const COIN_PACKAGES = [
     { id: 'pkg-1', coins: 100, price: '1.00', name: 'Starter Pack', description: 'Great for a few chapters' },

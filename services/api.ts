@@ -6,8 +6,12 @@ const API_BASE = ''; // Same origin
 
 export const api = {
     // Mangas
-    getMangas: async (): Promise<Manga[]> => {
-        const res = await fetch('/api/manga', { cache: 'no-store' });
+    getMangas: async (params?: { ids?: string[] }): Promise<Manga[]> => {
+        let url = '/api/manga';
+        if (params?.ids && params.ids.length > 0) {
+            url += `?ids=${params.ids.join(',')}`;
+        }
+        const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to fetch');
         return res.json();
     },
