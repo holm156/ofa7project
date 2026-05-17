@@ -49,23 +49,80 @@ const getContentTypeByExt = (ext: string): string => {
     }
 }
 
-// Function to bypass Cloudflare using local FlareSolverr instance
-async function fetchHtmlWithFlareSolverr(url: string): Promise<string | null> {
+// Active session cache & solved credentials to bypass Cloudflare and speed up requests
+let activeSessionId: string | null = null;
+let lastSolvedCookies: any[] = [];
+let lastSolvedUserAgent: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+function getCookieHeaderString(): string {
+    if (!lastSolvedCookies || lastSolvedCookies.length === 0) return '';
+    return lastSolvedCookies.map(c => `${c.name}=${c.value}`).join('; ');
+}
+
+async function getOrCreateFlareSolverrSession(flaresolverrUrl: string): Promise<string | null> {
+    if (activeSessionId) return activeSessionId;
+
     try {
-        const payload = {
-            cmd: "request.get",
-            url: url,
-            maxTimeout: 60000
-        };
-        const res = await axios.post('http://127.0.0.1:8191/v1', payload, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 65000
-        });
-        if (res.data && res.data.solution && res.data.solution.response) {
-            return res.data.solution.response;
+        // List existing sessions
+        const listRes = await axios.post(flaresolverrUrl.replace(/\/v1\/?$/, '/sessions.list'), {}, { timeout: 5000 });
+        if (listRes.data && listRes.data.sessions && listRes.data.sessions.length > 0) {
+            activeSessionId = listRes.data.sessions[0];
+            return activeSessionId;
+        }
+
+        // Create new persistent session
+        const createRes = await axios.post(flaresolverrUrl.replace(/\/v1\/?$/, '/sessions.create'), {
+            session: "duskscans_session"
+        }, { timeout: 10000 });
+
+        if (createRes.data && createRes.data.session) {
+            activeSessionId = createRes.data.session;
+            return activeSessionId;
         }
     } catch (e) {
-        console.warn(`[FlareSolverr] Failed to fetch or bypass: ${url}`);
+        console.warn(`[Scraper] Session creation failed, falling back to sessionless requests.`);
+    }
+    return null;
+}
+
+// Function to bypass Cloudflare using FlareSolverr instance with automatic Docker container host detection
+async function fetchHtmlWithFlareSolverr(url: string): Promise<string | null> {
+    const urlsToTry = [
+        'http://flaresolverr:8191/v1',   // production container name
+        'http://127.0.0.1:8191/v1'      // local fallback
+    ];
+
+    for (const flaresolverrUrl of urlsToTry) {
+        try {
+            const sessionId = await getOrCreateFlareSolverrSession(flaresolverrUrl);
+            const payload: any = {
+                cmd: "request.get",
+                url: url,
+                maxTimeout: 60000
+            };
+            if (sessionId) {
+                payload.session = sessionId;
+            }
+
+            const res = await axios.post(flaresolverrUrl, payload, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 65000
+            });
+
+            if (res.data && res.data.solution) {
+                if (res.data.solution.cookies) {
+                    lastSolvedCookies = res.data.solution.cookies;
+                }
+                if (res.data.solution.userAgent) {
+                    lastSolvedUserAgent = res.data.solution.userAgent;
+                }
+                if (res.data.solution.response) {
+                    return res.data.solution.response;
+                }
+            }
+        } catch (e: any) {
+            console.warn(`[Scraper] Failed to fetch or bypass: ${url}`);
+        }
     }
     return null;
 }
@@ -105,7 +162,7 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         const useFlareSolverr = url.includes('asuracomic') || url.includes('flamescans') || url.includes('asurascans') || url.includes('luminousscans');
 
         if (useFlareSolverr) {
-            console.log(`[Scraper] Protected domain detected, routing through FlareSolverr: ${url}`);
+            console.log(`[Scraper] Protected domain detected, routing through bypass proxy: ${url}`);
             try {
                 const fsRes = await fetchHtmlWithFlareSolverr(url);
                 if (fsRes) html = fsRes;
@@ -125,7 +182,7 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
             } catch (err: any) {
                 // Check if axios failed with 403 or timeout, and try flaresolverr as a last resort
                 if (err.response?.status === 403 || err.code === 'ECONNABORTED') {
-                    console.log(`[Scraper] Standard request failed (${err.message}), attempting FlareSolverr fallback for: ${url}`);
+                    console.log(`[Scraper] Standard request failed (${err.message}), attempting bypass fallback for: ${url}`);
                     const fsFallbackRes = await fetchHtmlWithFlareSolverr(url);
                     if (fsFallbackRes) html = fsFallbackRes;
                 }
@@ -240,10 +297,21 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
         return imgUrl;
     });
 
-    // --- HEIGHT FILTER & DOWNLOAD CACHE (Parallel Batches of 15) ---
+    // Prepare robust headers using last solved cookies & user-agent (Bypasses Cloudflare Image Hotlinking block)
+    const cookieStr = getCookieHeaderString();
+    const requestHeaders: any = {
+        'User-Agent': lastSolvedUserAgent,
+        'Referer': baseUrl,
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+    };
+    if (cookieStr) {
+        requestHeaders['Cookie'] = cookieStr;
+    }
+
+    // --- HEIGHT FILTER & DOWNLOAD CACHE (Parallel Batches of 30) ---
     const finalImageUrls: string[] = [];
     const downloadedBuffers = new Map<string, Buffer>();
-    const FILTER_BATCH_SIZE = 15;
+    const FILTER_BATCH_SIZE = 30; // Increased from 15 to 30 for 2x faster dimension checks on VPS
     
     for (let i = 0; i < candidateUrls.length; i += FILTER_BATCH_SIZE) {
         const batch = candidateUrls.slice(i, i + FILTER_BATCH_SIZE);
@@ -251,8 +319,8 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
             try {
                 const res = await axios.get(imgUrl, {
                     responseType: 'arraybuffer',
-                    headers: { 'Referer': baseUrl },
-                    timeout: 8000
+                    headers: requestHeaders,
+                    timeout: 10000
                 });
                 const buffer = Buffer.from(res.data, 'binary');
                 const meta = await sharp(buffer, { limitInputPixels: false }).metadata();
@@ -292,7 +360,7 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
     }
 
     const localPages: string[] = new Array(finalImageUrls.length).fill(null);
-    const DOWNLOAD_BATCH_SIZE = 8;
+    const DOWNLOAD_BATCH_SIZE = 25; // Increased from 8 to 25 for 3x faster downloads on VPS
 
     for (let i = 0; i < finalImageUrls.length; i += DOWNLOAD_BATCH_SIZE) {
         const batchIndices = Array.from({ length: Math.min(DOWNLOAD_BATCH_SIZE, finalImageUrls.length - i) }, (_, k) => i + k);
@@ -306,7 +374,8 @@ async function scrapeSingleUrl(url: string, mangaId: string, chapterNumber: stri
                 if (!imgBuffer) {
                     const imgRes = await axios.get(imgUrl, {
                         responseType: 'arraybuffer',
-                        headers: { 'Referer': new URL(url).origin }
+                        headers: requestHeaders,
+                        timeout: 12000
                     });
                     imgBuffer = Buffer.from(imgRes.data);
                 }
