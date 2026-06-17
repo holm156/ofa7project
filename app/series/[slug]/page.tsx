@@ -62,9 +62,10 @@ export default async function MangaDetailPage({ params }: { params: Promise<{ sl
         "genre": manga.genres,
         "aggregateRating": {
             "@type": "AggregateRating",
-            "ratingValue": manga.rating || "0",
-            "bestRating": "5",
-            "ratingCount": "100" // Placeholder or actual data if available
+            "ratingValue": manga.rating || "5",
+            "bestRating": "10",
+            "worstRating": "0",
+            "ratingCount": "100"
         }
     };
 
