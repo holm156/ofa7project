@@ -12,9 +12,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
     if (!manga) return { title: 'Manga Not Found' };
 
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://duskscans.com';
+
     return {
         title: `${manga.title} - Read Online | DuskScans`,
         description: manga.description?.slice(0, 160) || `Read ${manga.title} online for free on DuskScans. High-quality images and daily updates.`,
+        alternates: {
+            canonical: `${baseUrl}/series/${slug}`,
+        },
         openGraph: {
             title: manga.title,
             description: manga.description?.slice(0, 160),

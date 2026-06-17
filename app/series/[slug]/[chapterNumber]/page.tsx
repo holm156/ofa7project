@@ -15,10 +15,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     if (!manga) return { title: 'Manga Not Found' };
 
     const num = parseFloat(chapterNumber.replace('chapter-', ''));
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://duskscans.com';
 
     return {
         title: `Read ${manga.title} Chapter ${num} Online - DuskScans`,
         description: `Read ${manga.title} chapter ${num} online for free. High-quality images for ${manga.title} and many more manga.`,
+        alternates: {
+            canonical: `${baseUrl}/series/${slug}/chapter-${num}`,
+        },
         openGraph: {
             title: `${manga.title} Chapter ${num}`,
             description: `Read ${manga.title} chapter ${num} on DuskScans.`,
@@ -62,7 +66,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ slug: s
     }
 
     const isAdminOrMod = userFromDb?.role === 'admin' || userFromDb?.role === 'moderator';
-    const unlockedChapterIds = userFromDb?.unlockedChapters.map(uc => uc.chapterId) || [];
+    const unlockedChapterIds = userFromDb?.unlockedChapters.map((uc: any) => uc.chapterId) || [];
 
     const canViewChapter = (ch: any) => {
         if (isAdminOrMod) return true;
