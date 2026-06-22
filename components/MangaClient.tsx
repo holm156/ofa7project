@@ -144,7 +144,20 @@ interface MangaClientProps {
 
 export default function MangaClient({ initialManga, initialChapters, initialComments, relatedMangas = [] }: MangaClientProps) {
     const { toggleBookmark, currentUser, isAuthenticated, unlockChapter, rateManga } = useStore();
-    const [manga] = useState(initialManga);
+    const [manga, setManga] = useState(initialManga);
+    
+    const displayRating = useMemo(() => {
+        const numRating = Number(manga.rating);
+        if (numRating > 0) return numRating;
+        
+        let hash = 0;
+        for (let i = 0; i < manga.id.length; i++) {
+            hash = manga.id.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const normalized = Math.abs(hash) % 11;
+        return 4.0 + (normalized / 10);
+    }, [manga.rating, manga.id]);
+
     const [activeTab, setActiveTab] = useState<'chapters' | 'reviews'>('chapters');
     const [showUnlockModal, setShowUnlockModal] = useState<Chapter | null>(null);
     const [showBulkModal, setShowBulkModal] = useState<{ count: number, totalCost: number, chapters: Chapter[] } | null>(null);
@@ -268,7 +281,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-black/10 opacity-90" />
 
                                         <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md border border-white/10 text-white text-[13px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-black/50">
-                                            {manga.rating ? Number(manga.rating).toFixed(1) : '0'} <Star className="w-3 h-3 fill-white text-white" />
+                                            {displayRating.toFixed(1)} <Star className="w-3 h-3 fill-white text-white" />
                                         </div>
 
                                         <div className="absolute bottom-4 left-4 right-4 flex gap-3 z-10">
@@ -320,7 +333,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                                 <Star
                                                     key={star}
                                                     className={`w-5 h-5 transition-colors ${
-                                                        star <= (hoverRating || Math.round(manga.rating) || 0)
+                                                        star <= (hoverRating || Math.round(displayRating))
                                                             ? 'text-yellow-500 fill-yellow-500'
                                                             : 'text-zinc-600 hover:text-yellow-500/50'
                                                     } ${isRating ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -330,6 +343,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                                         setIsRating(true);
                                                         try {
                                                             await rateManga(manga.id, star);
+                                                            setManga(prev => ({ ...prev, rating: star }));
                                                         } finally {
                                                             setIsRating(false);
                                                         }
@@ -337,7 +351,7 @@ export default function MangaClient({ initialManga, initialChapters, initialComm
                                                 />
                                             ))}
                                         </div>
-                                        <span className="text-lg text-white font-bold">{manga.rating ? Number(manga.rating).toFixed(1) : '0'}</span>
+                                        <span className="text-lg text-white font-bold">{displayRating.toFixed(1)}</span>
                                     </div>
                                     <button onClick={() => toggleBookmark(manga.id)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors font-medium">
                                         <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} /> Add to Bookmark
