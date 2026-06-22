@@ -53,14 +53,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             url: `${baseUrl}/series/${manga.slug}`,
             lastModified: new Date(manga.updatedAt),
             changeFrequency: 'weekly' as const,
-            priority: 1,
+            priority: 0.8,
         }));
 
         const chapterPages: MetadataRoute.Sitemap = chapters.map((chapter: any) => ({
             url: `${baseUrl}/series/${chapter.manga.slug}/chapter-${chapter.number}`,
             lastModified: new Date(chapter.updatedAt),
             changeFrequency: 'monthly' as const,
-            priority: 1,
+            priority: 0.6,
         }));
 
         return [...staticPages, ...mangaPages, ...chapterPages];

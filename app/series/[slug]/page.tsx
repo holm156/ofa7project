@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
     return {
         title: `${manga.title} - Read Online | DuskScans`,
-        description: manga.description?.slice(0, 160) || `Read ${manga.title} online for free on DuskScans. High-quality images and daily updates.`,
+        description: manga.description?.slice(0, 160) || `Read ${manga.title} online for free with no ads on DuskScans. High-quality images and daily updates.`,
         alternates: {
             canonical: `${baseUrl}/series/${slug}`,
         },

@@ -14,8 +14,8 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   metadataBase: new URL('https://duskscans.com'),
   title: 'Dusk Scans - Read Manhwa Online',
-  description: 'Dusk Scans is a manhwa reading platform built for speed, featuring high-quality translations and daily updates.',
-  keywords: ['manhwa', 'manga', 'read online', 'duskscans', 'manhwa platform', 'free manhwa', 'comics'],
+  description: 'Dusk Scans is an ad-free manhwa reading platform built for speed, featuring high-quality translations and daily updates with no ads.',
+  keywords: ['manhwa', 'manga', 'read online', 'duskscans', 'manhwa platform', 'free manhwa', 'comics', 'no ads', 'ad-free'],
   icons: {
     icon: '/logo1.png',
     shortcut: '/logo1.png',
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Dusk Scans - Your Favorite Manhwa Online',
-    description: 'Read the latest manhwa and manga chapters online for free on Dusk Scans.',
+    description: 'Read the latest manhwa and manga chapters online for free with no ads on Dusk Scans.',
     url: 'https://duskscans.com',
     siteName: 'Dusk Scans',
     images: [{ url: '/logo1.png', width: 800, height: 600 }],
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Dusk Scans - Read Manhwa Online',
-    description: 'The best experience for reading manhwa and manga online.',
+    description: 'The best ad-free experience for reading manhwa and manga online.',
     images: ['/logo1.png'],
   },
 };
