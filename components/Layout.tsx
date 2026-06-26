@@ -371,7 +371,7 @@ export const Sidebar: React.FC = () => {
     }
 
     const communityNav = [
-        { href: process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/', icon: <MessageSquare className="w-5 h-5" />, label: 'Discord' },
+        { href: process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/aMzBcKPkdb', icon: <MessageSquare className="w-5 h-5" />, label: 'Discord' },
     ];
 
     return (
@@ -398,7 +398,7 @@ export const Sidebar: React.FC = () => {
                         <div className="relative z-10">
                             <p className="text-sm font-black text-white mb-1">READ. DISCUSS.<br />REPEAT.</p>
                             <p className="text-xs text-zinc-400 mb-3">Join our community of readers!</p>
-                            <a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/'} target="_blank" rel="noopener noreferrer"
+                            <a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/aMzBcKPkdb'} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center justify-center gap-2 bg-primary hover:opacity-90 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors w-full">
                                 <MessageSquare className="w-4 h-4" /> Join Discord
                             </a>
@@ -473,7 +473,7 @@ export const Footer: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
                     designed for true fans.
                 </p>
                 <div className="flex gap-4">
-                    <a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="p-3 bg-white/5 hover:bg-primary/10 hover:text-primary rounded-xl transition-all border border-white/5 group">
+                    <a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/aMzBcKPkdb'} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/5 hover:bg-primary/10 hover:text-primary rounded-xl transition-all border border-white/5 group">
                         <MessageSquare className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     </a>
                 </div>
@@ -484,10 +484,10 @@ export const Footer: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
                 <div>
                     <h4 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-6">Support</h4>
                     <ul className="space-y-4">
-                        <li><a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Help Center</a></li>
-                        <li><a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Report Issue</a></li>
+                        <li><a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/aMzBcKPkdb'} target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Help Center</a></li>
+                        <li><a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/aMzBcKPkdb'} target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Report Issue</a></li>
                         <li><Link href="/dmca" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> DMCA</Link></li>
-                        <li><a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Contact Us</a></li>
+                        <li><a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/aMzBcKPkdb'} target="_blank" rel="noopener noreferrer" className="text-sm text-zinc-500 hover:text-white transition-colors flex items-center gap-2 group"><ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-all -ml-5 group-hover:ml-0" /> Contact Us</a></li>
                     </ul>
                 </div>
                 <div>
