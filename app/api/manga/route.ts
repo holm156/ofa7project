@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const manga = await prisma.manga.create({
       data: {
         title: body.title,
+        alternativeTitle: body.alternativeTitle || null,
         cover: body.cover,
         backgroundImage: body.backgroundImage,
         description: body.description,

@@ -149,7 +149,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
     const [isEditingManga, setIsEditingManga] = useState(false);
     const [selectedManga, setSelectedManga] = useState<Manga | null>(null);
     const [mangaForm, setMangaForm] = useState({
-        title: '', cover: '', backgroundImage: '', description: '', author: '',
+        title: '', alternativeTitle: '', cover: '', backgroundImage: '', description: '', author: '',
         status: 'Ongoing' as 'Ongoing' | 'Completed' | 'Hiatus',
         type: 'Manhwa' as 'Manhwa' | 'Manga' | 'Manhua',
         genres: [] as string[],
@@ -196,6 +196,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
     // User Management State
     const [userSearch, setUserSearch] = useState('');
+    const [mangaViewSearch, setMangaViewSearch] = useState('');
     const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
     const [isSearchingUsers, setIsSearchingUsers] = useState(false);
     const [coinAmount, setCoinAmount] = useState<number>(0);
@@ -738,7 +739,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
             }
 
             // Reset
-            setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' });
+            setMangaForm({ title: '', alternativeTitle: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' });
             setCoverFile(null);
             setBgFile(null);
             const coverInput = document.getElementById('cover-file') as HTMLInputElement;
@@ -757,6 +758,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
         setSelectedManga(manga);
         setMangaForm({
             title: manga.title,
+            alternativeTitle: (manga as any).alternativeTitle || '',
             cover: manga.cover,
             backgroundImage: manga.backgroundImage || '',
             description: manga.description,
@@ -1610,10 +1612,18 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
 
                                 {/* Top Manga Section */}
                                 <div>
-                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
-                                        <Badge color="bg-primary/20 text-primary border-primary/20">Hot</Badge>
-                                        Most Viewed Manga (Top 5)
-                                    </h3>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                                        <h3 className="text-xl font-bold flex items-center gap-3">
+                                            <Badge color="bg-primary/20 text-primary border-primary/20">Hot</Badge>
+                                            Most Viewed Manga (Top 5)
+                                        </h3>
+                                        <div className="flex items-center gap-4 bg-surface p-3 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Total Views Across All Manga</span>
+                                                <span className="text-xl font-black text-white">{stats.content.totalViews?.toLocaleString() || 0}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                                         {stats.topManga.map((m: any, idx: number) => (
                                             <div key={idx} className="bg-surface rounded-xl border border-white/5 overflow-hidden hover:border-primary/30 transition-all group relative">
@@ -1633,7 +1643,40 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                                 </div>
                                             </div>
                                         ))}
+                                        </div>
+                                </div>
+
+                                {/* Manga Views Search Section */}
+                                <div className="mt-8 pt-8 border-t border-white/5">
+                                    <h3 className="text-xl font-bold mb-6">Search Manga Views</h3>
+                                    <div className="relative mb-6 max-w-md">
+                                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                            <Search className="w-4 h-4 text-zinc-500" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Search manga by title..."
+                                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-primary transition-all"
+                                            value={mangaViewSearch}
+                                            onChange={(e) => setMangaViewSearch(e.target.value)}
+                                        />
                                     </div>
+                                    {mangaViewSearch && (
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                            {mangas.filter(m => m.title.toLowerCase().includes(mangaViewSearch.toLowerCase())).slice(0, 12).map((m) => (
+                                                <div key={m.id} className="bg-surface p-4 rounded-xl border border-white/5 flex items-center gap-4">
+                                                    <img src={getImageUrl(m.cover)} className="w-12 h-16 object-cover rounded-lg" alt="" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold text-white truncate">{m.title}</p>
+                                                        <p className="text-xs text-primary font-bold mt-1">{m.views.toLocaleString()} Views</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {mangas.filter(m => m.title.toLowerCase().includes(mangaViewSearch.toLowerCase())).length === 0 && (
+                                                <p className="text-zinc-500 text-sm">No manga found matching "{mangaViewSearch}"</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -1963,9 +2006,13 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         <div className="lg:col-span-2 space-y-8">
                                             {/* Basic Info Row */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="md:col-span-2">
+                                                <div className="md:col-span-1">
                                                     <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Title</label>
                                                     <Input value={mangaForm.title} onChange={e => setMangaForm({ ...mangaForm, title: e.target.value })} required className="bg-zinc-900/30 border-zinc-800/50 text-base py-6" />
+                                                </div>
+                                                <div className="md:col-span-1">
+                                                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">Alternative Title</label>
+                                                    <Input value={mangaForm.alternativeTitle} onChange={e => setMangaForm({ ...mangaForm, alternativeTitle: e.target.value })} className="bg-zinc-900/30 border-zinc-800/50 text-base py-6" placeholder="Optional" />
                                                 </div>
                                                 <div className="md:col-span-2">
                                                     <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 ml-1">Description</label>
@@ -2103,7 +2150,7 @@ export default function AdminClient({ initialMangas }: AdminClientProps) {
                                         {isEditingManga && (
                                             <button
                                                 type="button"
-                                                onClick={() => { setIsEditingManga(false); setMangaForm({ title: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' }); setCoverFile(null); setBgFile(null); }}
+                                                onClick={() => { setIsEditingManga(false); setMangaForm({ title: '', alternativeTitle: '', cover: '', backgroundImage: '', description: '', author: '', status: 'Ongoing', type: 'Manhwa', genres: [], discordRoleId: '', releaseYear: '2024', views: 0, updatedAt: '' }); setCoverFile(null); setBgFile(null); }}
                                                 className="flex-1 py-3.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-black text-sm hover:bg-zinc-800 transition-all uppercase tracking-widest"
                                             >
                                                 Cancel

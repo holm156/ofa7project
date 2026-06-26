@@ -22,6 +22,7 @@ export async function PUT(
         // Update genres mapping if provided
         const updateData: any = {
             title: body.title,
+            alternativeTitle: body.alternativeTitle !== undefined ? body.alternativeTitle : undefined,
             cover: body.cover,
             backgroundImage: body.backgroundImage,
             description: body.description,

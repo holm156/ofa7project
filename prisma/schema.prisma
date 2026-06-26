@@ -149,6 +149,7 @@ model Manga {
   chapterCount    Int           @default(0)
   discordRoleId   String?
   releaseYear     String?       @default("2025")
+  alternativeTitle String?
   chapters        Chapter[]
   comments        Comment[]
   user            User?         @relation(fields: [userId], references: [id], map: "Manga_userId_fkey")

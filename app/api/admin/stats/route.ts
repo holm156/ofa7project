@@ -63,6 +63,12 @@ export async function GET() {
     const totalChapters = await prisma.chapter.count();
     const unlockedChaptersCount = await prisma.unlockedChapter.count();
 
+    // 5. Total Manga Views
+    const totalViewsAgg = await prisma.manga.aggregate({
+      _sum: { views: true }
+    });
+    const totalViews = totalViewsAgg._sum.views || 0;
+
     return NextResponse.json({
       users: {
         total: totalUsers,
@@ -74,7 +80,8 @@ export async function GET() {
       },
       content: {
         totalChapters,
-        totalUnlocks: unlockedChaptersCount
+        totalUnlocks: unlockedChaptersCount,
+        totalViews
       },
       topManga: topMangaDetails
     });
