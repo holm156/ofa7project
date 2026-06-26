@@ -371,7 +371,7 @@ export const Sidebar: React.FC = () => {
     }
 
     const communityNav = [
-        { href: 'https://discord.gg/ZWPMNV7SzK', icon: <MessageSquare className="w-5 h-5" />, label: 'Discord' },
+        { href: process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/', icon: <MessageSquare className="w-5 h-5" />, label: 'Discord' },
     ];
 
     return (
@@ -398,7 +398,7 @@ export const Sidebar: React.FC = () => {
                         <div className="relative z-10">
                             <p className="text-sm font-black text-white mb-1">READ. DISCUSS.<br />REPEAT.</p>
                             <p className="text-xs text-zinc-400 mb-3">Join our community of readers!</p>
-                            <a href="https://discord.gg/ZWPMNV7SzK" target="_blank" rel="noopener noreferrer"
+                            <a href={process.env.NEXT_PUBLIC_DISCORD_URL || 'https://discord.gg/'} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center justify-center gap-2 bg-primary hover:opacity-90 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors w-full">
                                 <MessageSquare className="w-4 h-4" /> Join Discord
                             </a>
